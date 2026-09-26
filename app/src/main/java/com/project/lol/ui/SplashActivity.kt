@@ -256,7 +256,6 @@ class SplashActivity : ComponentActivity() {
                                     getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
                                         .edit()
                                         .putString("ConnectionMode", "normal")
-                                        .putBoolean("ServiceOn", false)
                                         .apply()
                                     LocalProxyManager.stop()
                                     recreate()

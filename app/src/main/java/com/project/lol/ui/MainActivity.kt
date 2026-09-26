@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
 
         val loggedIn = prefs.getBoolean("LoggedIn", false)
 
-        serviceEnabledState.value = prefs.getBoolean("ServiceOn", true)
+        serviceEnabledState.value = true
         materialYouState.value = prefs.getBoolean("MaterialYou", false)
         amoledState.value = prefs.getBoolean("AmoledTheme", false)
         hideTopBarState.value = prefs.getBoolean("HideTopBar", false)
@@ -269,7 +269,6 @@ class MainActivity : ComponentActivity() {
                 if (reopen) prefs.edit().remove("ReopenSettings").apply()
                 mutableStateOf(reopen)
             }
-            var showMiniMenu by remember { mutableStateOf(false) }
             val versionName = remember {
                 runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
                     .getOrNull() ?: ""
@@ -382,19 +381,6 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 },
-                                actions = {
-                                Switch(
-                                    checked = serviceEnabled,
-                                    onCheckedChange = { newValue -> setServiceEnabled(newValue) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                                        checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                )
-                                Spacer(Modifier.width(8.dp))
-                            },
                                 colors = TopAppBarDefaults.topAppBarColors(
                                     containerColor = MaterialTheme.colorScheme.surface,
                                     titleContentColor = MaterialTheme.colorScheme.onSurface,
@@ -631,15 +617,7 @@ class MainActivity : ComponentActivity() {
 
                         if (hideTopBar) {
                             QuickAccessOverlay(
-                                showMenu = showMiniMenu,
-                                onToggleMenu = { showMiniMenu = !showMiniMenu },
-                                onOpenSettings = {
-                                    showMiniMenu = false
-                                    settingsDialogOpen = true
-                                },
-                                serviceEnabled = serviceEnabled,
-                                onServiceToggle = { newValue -> setServiceEnabled(newValue) },
-                                onDismissMenu = { showMiniMenu = false }
+                                onOpenSettings = { settingsDialogOpen = true }
                             )
                         }
                     }
@@ -678,7 +656,6 @@ class MainActivity : ComponentActivity() {
     private fun switchConnectionMode(mode: String) {
         Logger.i(TAG, "connection mode -> $mode, restarting app")
         prefs.edit().putString("ConnectionMode", mode).apply()
-        prefs.edit().putBoolean("ServiceOn", false).apply()
         stopService(Intent(this, MediaNotificationService::class.java))
         LocalProxyManager.stop()
         val intent = Intent(this, SplashActivity::class.java).apply {
@@ -939,12 +916,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun QuickAccessOverlay(
-        showMenu: Boolean,
-        onToggleMenu: () -> Unit,
-        onOpenSettings: () -> Unit,
-        serviceEnabled: Boolean,
-        onServiceToggle: (Boolean) -> Unit,
-        onDismissMenu: () -> Unit
+        onOpenSettings: () -> Unit
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Box(
@@ -953,88 +925,15 @@ class MainActivity : ComponentActivity() {
                     .size(44.dp)
                     .shadow(6.dp, CircleShape)
                     .clip(CircleShape)
-                    .clickable(onClick = onToggleMenu),
+                    .clickable(onClick = onOpenSettings),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_launcher_playstore),
-                    contentDescription = stringResource(R.string.main_quick_settings),
+                    contentDescription = stringResource(R.string.main_settings_content_description),
                     tint = Color.Unspecified,
                     modifier = Modifier.fillMaxSize()
                 )
-            }
-
-            if (showMenu) {
-                Popup(
-                    alignment = Alignment.TopCenter,
-                    offset = IntOffset(0, with(LocalDensity.current) { 64.dp.toPx() }.toInt()),
-                    onDismissRequest = onDismissMenu
-                ) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                        ),
-                        border = BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Column(modifier = Modifier.width(220.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()                                                .clickable(onClick = onOpenSettings)
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = TablerIcons.Settings,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    text = stringResource(R.string.main_settings),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Icon(
-                                    imageVector = TablerIcons.Menu2,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                            }
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onServiceToggle(!serviceEnabled) }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.main_service),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Switch(
-                                    checked = serviceEnabled,
-                                    onCheckedChange = onServiceToggle,
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                                        checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                        uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -1404,7 +1303,7 @@ class MainActivity : ComponentActivity() {
         })
 
         prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
-        serviceEnabledState.value = prefs.getBoolean("ServiceOn", true)
+        serviceEnabledState.value = true
         materialYouState.value = prefs.getBoolean("MaterialYou", false)
         amoledState.value = prefs.getBoolean("AmoledTheme", false)
         hideTopBarState.value = prefs.getBoolean("HideTopBar", false)

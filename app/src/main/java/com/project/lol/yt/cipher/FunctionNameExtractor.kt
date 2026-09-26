@@ -1,6 +1,6 @@
 package com.project.lol.yt.cipher
 
-import android.util.Log
+import com.project.lol.util.Logger
 import java.security.MessageDigest
 
 /**
@@ -157,8 +157,8 @@ object FunctionNameExtractor {
         val config = KNOWN_PLAYER_CONFIGS[playerHash]
         if (config != null) {
         } else {
-            Log.w(TAG, "No hardcoded config for hash: $playerHash")
-            Log.w(TAG, "Known hashes: ${KNOWN_PLAYER_CONFIGS.keys.joinToString()}")
+            Logger.w(TAG, "No hardcoded config for hash: $playerHash")
+            Logger.w(TAG, "Known hashes: ${KNOWN_PLAYER_CONFIGS.keys.joinToString()}")
         }
         return config
     }
@@ -182,7 +182,7 @@ object FunctionNameExtractor {
             }
         }
 
-        Log.w(TAG, "No sig pattern matched, checking for Q-array obfuscation...")
+        Logger.w(TAG, "No sig pattern matched, checking for Q-array obfuscation...")
 
         // Check for Q-array obfuscation and use hardcoded fallback
         if (hasQArrayObfuscation(playerJs)) {
@@ -203,8 +203,8 @@ object FunctionNameExtractor {
             }
         }
 
-        Log.e(TAG, "========== SIG FUNCTION EXTRACTION FAILED ==========")
-        Log.e(TAG, "Could not find signature deobfuscation function name")
+        Logger.e(TAG, "========== SIG FUNCTION EXTRACTION FAILED ==========")
+        Logger.e(TAG, "Could not find signature deobfuscation function name")
         return null
     }
 
@@ -240,7 +240,7 @@ object FunctionNameExtractor {
             }
         }
 
-        Log.w(TAG, "No n-func pattern matched, checking for Q-array obfuscation...")
+        Logger.w(TAG, "No n-func pattern matched, checking for Q-array obfuscation...")
 
         // Check for Q-array obfuscation and use hardcoded fallback
         if (hasQArrayObfuscation(playerJs)) {
@@ -254,8 +254,8 @@ object FunctionNameExtractor {
             }
         }
 
-        Log.e(TAG, "========== N-FUNCTION EXTRACTION FAILED ==========")
-        Log.e(TAG, "Could not find n-transform function name")
+        Logger.e(TAG, "========== N-FUNCTION EXTRACTION FAILED ==========")
+        Logger.e(TAG, "Could not find n-transform function name")
         return null
     }
 
@@ -289,7 +289,7 @@ object FunctionNameExtractor {
             }
         }
 
-        Log.w(TAG, "Could not extract signatureTimestamp")
+        Logger.w(TAG, "Could not extract signatureTimestamp")
         return null
     }
 

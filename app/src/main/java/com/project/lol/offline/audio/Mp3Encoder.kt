@@ -6,7 +6,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
+import com.project.lol.util.Logger
 import com.project.lol.opus.OpusDecoder
 import net.qiujuer.lame.Lame
 import net.qiujuer.lame.Lame.LameModel
@@ -46,7 +46,7 @@ object Mp3Encoder {
 
     private val opusAvailable: Boolean by lazy {
         runCatching { OpusDecoder.version() }
-            .onFailure { Log.w(TAG, "transcode: libopus unavailable, falling back to MediaCodec") }
+            .onFailure { Logger.w(TAG, "transcode: libopus unavailable, falling back to MediaCodec") }
             .isSuccess
     }
 
@@ -85,7 +85,7 @@ object Mp3Encoder {
 
         try {
             val probe = probeTrack(input, extractor) ?: run {
-                Log.w(TAG, "transcode: no audio track in ${input.name}")
+                Logger.w(TAG, "transcode: no audio track in ${input.name}")
                 return false
             }
             val mime = probe.mime
@@ -229,7 +229,7 @@ object Mp3Encoder {
             } else {
                 val format = probe.format
                 if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
-                    Log.w(TAG, "transcode: unsupported pcm encoding $pcmEncoding for ${input.name}")
+                    Logger.w(TAG, "transcode: unsupported pcm encoding $pcmEncoding for ${input.name}")
                     return false
                 }
                 val handlerThread = HandlerThread("mp3-codec").apply { start() }
@@ -306,7 +306,7 @@ object Mp3Encoder {
                 decoder.start()
             }
 
-            Log.i(
+            Logger.i(
                 TAG,
                 String.format(
                     Locale.US,
@@ -325,7 +325,7 @@ object Mp3Encoder {
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
             val audioMs = durationUs / 1000
             val speed = if (elapsedMs > 0) audioMs.toDouble() / elapsedMs else 0.0
-            Log.i(
+            Logger.i(
                 TAG,
                 String.format(
                     Locale.US,
@@ -342,18 +342,18 @@ object Mp3Encoder {
             val cause = failure.get()
             if (!completed || cause != null || output.length() <= 0) {
                 if (cause != null) {
-                    Log.e(TAG, "transcode: failed: ${cause.message}", cause)
+                    Logger.e(TAG, "transcode: failed: ${cause.message}", cause)
                 } else if (!completed) {
-                    Log.e(TAG, "transcode: timed out waiting for the encoder")
+                    Logger.e(TAG, "transcode: timed out waiting for the encoder")
                 } else {
-                    Log.w(TAG, "transcode: no output for ${input.name}")
+                    Logger.w(TAG, "transcode: no output for ${input.name}")
                 }
                 runCatching { output.delete() }
                 return false
             }
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "transcode: failed: ${e.message}", e)
+            Logger.e(TAG, "transcode: failed: ${e.message}", e)
             runCatching { output.delete() }
             return false
         } finally {

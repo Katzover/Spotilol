@@ -64,8 +64,59 @@ object PlaybackControls {
                     })
                 });
             };
+            window.splEnsurePb=function(){
+                var pb=window.pBtn;
+                if(pb && document.documentElement.contains(pb)) return pb;
+                var all=document.querySelectorAll('aside button[data-testid=control-button-playpause], button[data-testid=control-button-playpause]');
+                var first=null;
+                for(var i=0;i<all.length;i++){
+                    if(first===null) first=all[i];
+                    if(all[i].getClientRects().length>0){ first=all[i]; break; }
+                }
+                if(first){ window.pBtn=first; return first; }
+                try{ AndBridge.dbg('e','bt auto-pause: no play button found'); }catch(e){}
+                return null;
+            };
+            window.splPauseOutcome=function(cb){
+                var s1=window.splIsPlaying();
+                if(s1===false){ cb('paused'); return; }
+                setTimeout(function(){
+                    var s2=window.splIsPlaying();
+                    if(s2===false) cb('paused');
+                    else if(s1===true && s2===true) cb('playing');
+                    else cb('unknown');
+                },400);
+            };
+            window.splPauseRetry=function(tries){
+                tries=tries||0;
+                var cur=(typeof window.splIsPlaying==='function')?window.splIsPlaying():null;
+                if(cur===false) return;
+                if(tries>0 && cur!==true) return;
+                var pb=window.splEnsurePb();
+                if(!pb) return;
+                try{ window.reqPause=true; window.ulFlag=false; }catch(e){}
+                pb.click();
+                setTimeout(function(){
+                    window.splPauseOutcome(function(outcome){
+                        if(outcome==='paused'){
+                            try{ AndBridge.dbg('s','bt auto-pause: confirmed paused'); }catch(e){}
+                            return;
+                        }
+                        if(outcome==='unknown'){
+                            try{ AndBridge.dbg('w','bt auto-pause: play state unknown, not retrying'); }catch(e){}
+                            return;
+                        }
+                        if(tries>=3){
+                            try{ AndBridge.dbg('e','bt auto-pause: playback continued after '+(tries+1)+' attempts'); }catch(e){}
+                            return;
+                        }
+                        try{ AndBridge.dbg('w','bt auto-pause: still playing, retry '+(tries+1)); }catch(e){}
+                        window.splPauseRetry(tries+1);
+                    });
+                },900);
+            };
             window.actPlayPause = function(play) {
-                var pb = window.pBtn;
+                var pb = window.splEnsurePb();
                 if (!pb) return;
                 var cur = (typeof window.splIsPlaying === 'function') ? window.splIsPlaying() : null;
                 if (play === null || typeof play === 'undefined' || cur === null) {
@@ -73,7 +124,7 @@ object PlaybackControls {
                 } else if (play === true) {
                     if (!cur) pb.click();
                 } else if (play === false) {
-                    if (cur) pb.click();
+                    window.splPauseRetry(0);
                 }
             };
             window.actSkipBack = function() {

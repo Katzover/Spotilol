@@ -25,6 +25,7 @@ import androidx.media.app.NotificationCompat.MediaStyle
 import androidx.media.session.MediaButtonReceiver
 import com.project.lol.R
 import com.project.lol.ui.OfflineActivity
+import com.project.lol.util.Logger
 import java.io.File
 import kotlin.math.min
 
@@ -68,7 +69,7 @@ class OfflineMediaService : Service() {
     private var coverBitmap: Bitmap? = null
     private var currentTitle = ""
     private var currentArtist = ""
-    private var currentAlbum = "Spotilol"
+    private var currentAlbum = ""
     private var currentPosition: Long = 0L
     private var currentDuration: Long = 0L
 
@@ -88,7 +89,7 @@ class OfflineMediaService : Service() {
             if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
                 val prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
                 if (prefs.getBoolean("BtAutoPause", false)) {
-                    controller?.onPlayPause()
+                    if (isPlaying) controller?.onPlayPause()
                 }
             }
         }
@@ -100,22 +101,22 @@ class OfflineMediaService : Service() {
         try {
             createNotificationChannel()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to create notification channel", e)
+            Logger.e(TAG, "Failed to create notification channel", e)
         }
         try {
             setupMediaSession()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to setup media session", e)
+            Logger.e(TAG, "Failed to setup media session", e)
         }
         try {
             registerReceivers()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to register receivers", e)
+            Logger.e(TAG, "Failed to register receivers", e)
         }
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotificationSafe(), getStartForegroundServiceType())
         } catch (e: Throwable) {
-            android.util.Log.e(TAG, "Failed to start foreground", e)
+            Logger.e(TAG, "Failed to start foreground", e)
         }
     }
 
@@ -136,7 +137,7 @@ class OfflineMediaService : Service() {
         if (intent?.hasExtra("title") == true) {
             currentTitle = intent.getStringExtra("title") ?: ""
             currentArtist = intent.getStringExtra("artist") ?: ""
-            currentAlbum = intent.getStringExtra("album")?.ifBlank { "Spotilol" } ?: "Spotilol"
+            currentAlbum = intent.getStringExtra("album") ?: ""
             currentDuration = intent.getLongExtra("duration", 0L)
             isPlaying = intent.getBooleanExtra("playing", false)
             currentPosition = intent.getLongExtra("position", 0L)
@@ -152,12 +153,12 @@ class OfflineMediaService : Service() {
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotificationSafe(), getStartForegroundServiceType())
         } catch (e: Throwable) {
-            android.util.Log.e(TAG, "Failed to re-assert foreground", e)
+            Logger.e(TAG, "Failed to re-assert foreground", e)
         }
         try {
             MediaButtonReceiver.handleIntent(mediaSession, intent)
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to handle media button intent", e)
+            Logger.e(TAG, "Failed to handle media button intent", e)
         }
         return START_STICKY
     }
@@ -178,10 +179,10 @@ class OfflineMediaService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Offline Playback",
+                getString(R.string.notif_channel_offline_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Spotilol offline playback controls"
+                description = getString(R.string.notif_channel_offline_description)
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
@@ -250,7 +251,7 @@ class OfflineMediaService : Service() {
     fun updateTrack(title: String, artist: String, album: String, coverFile: File?, duration: Long) {
         currentTitle = title
         currentArtist = artist
-        currentAlbum = album.ifBlank { "Spotilol" }
+        currentAlbum = album
         currentDuration = duration
         coverBitmap = null
         coverFile?.let { loadCoverArt(it) }
@@ -347,9 +348,9 @@ class OfflineMediaService : Service() {
         return try {
             buildNotification()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to build notification", e)
+            Logger.e(TAG, "Failed to build notification", e)
             NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Spotilol")
+                .setContentTitle(getString(R.string.app_name))
                 .setSmallIcon(R.drawable.ic_notification)
                 .setOngoing(true)
                 .build()
@@ -366,17 +367,17 @@ class OfflineMediaService : Service() {
         )
 
         val prevAction = NotificationCompat.Action.Builder(
-            R.drawable.ic_skip_prev, "Previous", getActionPendingIntent(ACTION_PREV)
+            R.drawable.ic_skip_prev, getString(R.string.notif_action_previous), getActionPendingIntent(ACTION_PREV)
         ).build()
 
         val playPauseAction = NotificationCompat.Action.Builder(
             if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
-            if (isPlaying) "Pause" else "Play",
+            if (isPlaying) getString(R.string.notif_action_pause) else getString(R.string.notif_action_play),
             getActionPendingIntent(ACTION_PLAY_PAUSE)
         ).build()
 
         val nextAction = NotificationCompat.Action.Builder(
-            R.drawable.ic_skip_next, "Next", getActionPendingIntent(ACTION_NEXT)
+            R.drawable.ic_skip_next, getString(R.string.notif_action_next), getActionPendingIntent(ACTION_NEXT)
         ).build()
 
         val style = MediaStyle()
@@ -388,9 +389,9 @@ class OfflineMediaService : Service() {
         }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(currentTitle.ifEmpty { "Spotilol" })
+            .setContentTitle(currentTitle.ifEmpty { getString(R.string.app_name) })
             .setContentText(currentArtist)
-            .setSubText("Offline Mode")
+            .setSubText(getString(R.string.notif_subtext_offline_mode))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(contentIntent)
             .setOngoing(true)

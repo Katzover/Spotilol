@@ -15,6 +15,8 @@ import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -42,6 +44,7 @@ import androidx.core.graphics.drawable.IconCompat
 import androidx.core.graphics.scale
 import androidx.core.graphics.toColorInt
 import com.project.lol.webview.helpers.AccentTheme
+import com.project.lol.util.Logger
 import java.lang.ref.WeakReference
 import java.net.HttpURLConnection
 import java.net.URL
@@ -91,6 +94,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
 
         var webView: WebView? = null
         var instance: MediaNotificationService? = null
+        private var appContext: Context? = null
 
         @Volatile
         private var taskRemoved = false
@@ -104,7 +108,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                     val jsonArray = org.json.JSONArray(json)
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val name = obj.optString("name", "Unknown")
+                        val name = obj.optString("name", appContext?.getString(R.string.notif_unknown_name) ?: "")
                         val id = obj.optString("id")
                         if (id.isEmpty()) continue
                         val image = obj.optString("image")
@@ -112,7 +116,8 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                         val isBrowsable = obj.optBoolean("browsable", false)
                         var sub = ""
                         if (artists != null && artists.length() > 0) {
-                            sub = "by " + (0 until artists.length()).map { artists.getString(it) }.joinToString(", ")
+                            val artistNames = (0 until artists.length()).map { artists.getString(it) }.joinToString(", ")
+                            sub = appContext?.getString(R.string.notif_by_artist, artistNames) ?: artistNames
                         }
                         val desc = MediaDescriptionCompat.Builder()
                             .setMediaId(id)
@@ -125,7 +130,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                         items.add(MediaBrowserCompat.MediaItem(desc, flags))
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e(TAG, "Error parsing media items", e)
+                    Logger.e(TAG, "Error parsing media items", e)
                 }
             }
             val finalItems = items
@@ -141,7 +146,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                     val jsonArray = org.json.JSONArray(json)
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val name = obj.optString("name", "Unknown")
+                        val name = obj.optString("name", appContext?.getString(R.string.notif_unknown_name) ?: "")
                         val id = obj.optString("id")
                         if (id.isEmpty()) continue
                         val image = obj.optString("image")
@@ -153,7 +158,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                         val sub = when {
                             type.isNotEmpty() && artistText.isNotEmpty() -> "$type • $artistText"
                             type.isNotEmpty() -> type
-                            artistText.isNotEmpty() -> "by $artistText"
+                            artistText.isNotEmpty() -> appContext?.getString(R.string.notif_by_artist, artistText) ?: artistText
                             else -> ""
                         }
                         val isBrowsable = obj.optBoolean("browsable", false)
@@ -168,7 +173,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                         items.add(MediaBrowserCompat.MediaItem(desc, flags))
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e(TAG, "Error parsing search results", e)
+                    Logger.e(TAG, "Error parsing search results", e)
                 }
             }
             val finalItems = items
@@ -185,6 +190,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
     private var coverBitmap: Bitmap? = null
     private var currentTitle = ""
     private var currentArtist = ""
+    private var currentAlbum = ""
     private var currentPosition: Long = 0L
     private var currentDuration: Long = 0L
     private var lastCoverUrl = ""
@@ -210,7 +216,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
                 val prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
-                if (prefs.getBoolean("BtAutoPause", false)) pausePlayback()
+                if (prefs.getBoolean("BtAutoPause", false)) autoPauseOnce("audio becoming noisy")
             }
         }
     }
@@ -220,13 +226,77 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
             val prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
             when (intent.action) {
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
-                    if (prefs.getBoolean("BtAutoPause", false)) pausePlayback()
+                    if (prefs.getBoolean("BtAutoPause", false)) autoPauseOnce("acl disconnected")
                 }
                 BluetoothDevice.ACTION_ACL_CONNECTED -> {
-                    if (prefs.getBoolean("BtAutoResume", false)) resumePlayback()
+                    if (prefs.getBoolean("BtAutoResume", false)) autoResumeOnce("acl connected")
                 }
             }
         }
+    }
+
+    private val remoteOutputTypes = intArrayOf(
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+        AudioDeviceInfo.TYPE_BLE_HEADSET,
+        AudioDeviceInfo.TYPE_BLE_SPEAKER,
+        AudioDeviceInfo.TYPE_HEARING_AID,
+        AudioDeviceInfo.TYPE_WIRED_HEADSET,
+        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+        AudioDeviceInfo.TYPE_USB_HEADSET,
+        AudioDeviceInfo.TYPE_USB_DEVICE,
+        AudioDeviceInfo.TYPE_USB_ACCESSORY
+    )
+
+    private val knownRouteIds = mutableSetOf<Int>()
+    private var lastAutoPauseAt = 0L
+    private var lastAutoResumeAt = 0L
+
+    private val audioRouteCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+            val fresh = addedDevices.filter { knownRouteIds.add(it.id) }
+            if (fresh.isEmpty()) return
+            val prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
+            if (!prefs.getBoolean("BtAutoResume", false)) return
+            if (fresh.none { isRemoteOutput(it.type) }) return
+            autoResumeOnce("route added: " + fresh.joinToString("/") { it.type.toString() })
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            knownRouteIds.removeAll(removedDevices.map { it.id }.toSet())
+            val prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
+            if (!prefs.getBoolean("BtAutoPause", false)) return
+            if (removedDevices.none { isRemoteOutput(it.type) }) return
+            autoPauseOnce("route removed: " + removedDevices.joinToString("/") { it.type.toString() })
+        }
+    }
+
+    private fun isRemoteOutput(type: Int): Boolean = remoteOutputTypes.contains(type)
+
+    private fun btLog(msg: String) {
+        Logger.s("bt", msg)
+    }
+
+    private fun autoPauseOnce(source: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastAutoPauseAt < 1500L) {
+            btLog("pause skipped, duplicate trigger ($source)")
+            return
+        }
+        lastAutoPauseAt = now
+        btLog("pause trigger: $source (webView=${if (webView != null) "bound" else "null"})")
+        pausePlayback()
+    }
+
+    private fun autoResumeOnce(source: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastAutoResumeAt < 1500L) {
+            btLog("resume skipped, duplicate trigger ($source)")
+            return
+        }
+        lastAutoResumeAt = now
+        btLog("resume trigger: $source")
+        resumePlayback()
     }
 
     private var lastMediaStatusJson: String? = null
@@ -259,7 +329,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                 }
                 if (state == 1) {
                     val prefs = getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
-                    if (prefs.getBoolean("HpAutoResume", false)) resumePlayback()
+                    if (prefs.getBoolean("HpAutoResume", false)) autoResumeOnce("headset plugged")
                 }
             }
         }
@@ -290,37 +360,39 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        appContext = applicationContext
 
         try {
             createNotificationChannel()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to create notification channel", e)
+            Logger.e(TAG, "Failed to create notification channel", e)
         }
 
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotificationSafe(), getStartForegroundServiceType())
         } catch (e: Throwable) {
-            android.util.Log.e(TAG, "Failed to start foreground", e)
+            Logger.e(TAG, "Failed to start foreground", e)
         }
 
         try {
             setupMediaSession()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to setup media session", e)
+            Logger.e(TAG, "Failed to setup media session", e)
         }
 
         try {
             registerReceivers()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to register receivers", e)
+            Logger.e(TAG, "Failed to register receivers", e)
         }
         try {
             registerDisconnectReceivers()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to register disconnect receivers", e)
+            Logger.e(TAG, "Failed to register disconnect receivers", e)
         }
         getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(prefsListener)
+        Logger.i(TAG, "media service ready: session, notification and receivers up")
     }
 
     @Suppress("DEPRECATION")
@@ -333,6 +405,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Logger.d(TAG, "onStartCommand startId=$startId action=${intent?.action ?: "none"} taskRemoved=$taskRemoved")
         if (taskRemoved) {
             stopSelf()
             return START_NOT_STICKY
@@ -340,12 +413,12 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotificationSafe(), getStartForegroundServiceType())
         } catch (e: Throwable) {
-            android.util.Log.e(TAG, "Failed to re-assert foreground", e)
+            Logger.e(TAG, "Failed to re-assert foreground", e)
         }
         try {
             MediaButtonReceiver.handleIntent(mediaSession, intent)
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to handle media button intent", e)
+            Logger.e(TAG, "Failed to handle media button intent", e)
         }
         return START_NOT_STICKY
     }
@@ -429,7 +502,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                 wv.dispatchWindowVisibilityChanged(android.view.View.VISIBLE)
                 wv.evaluateJavascript(js, null)
             } catch (e: Exception) {
-                android.util.Log.e(TAG, "Error waking WebView in wakeAndRun", e)
+                Logger.e(TAG, "Error waking WebView in wakeAndRun", e)
             }
         }
     }
@@ -449,6 +522,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         try { unregisterReceiver(bluetoothReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(audioBecomingNoisyReceiver) } catch (_: Exception) {}
         try { unregisterReceiver(headsetReceiver) } catch (_: Exception) {}
+        try { getSystemService(AudioManager::class.java).unregisterAudioDeviceCallback(audioRouteCallback) } catch (_: Exception) {}
         getSharedPreferences("spotilol_prefs", MODE_PRIVATE)
             .unregisterOnSharedPreferenceChangeListener(prefsListener)
         if (::mediaSession.isInitialized) {
@@ -467,10 +541,10 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Media Playback",
+                getString(R.string.notif_channel_media_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Spotilol media playback controls"
+                description = getString(R.string.notif_channel_media_description)
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
@@ -579,6 +653,15 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
 
         val hsFilter = IntentFilter(Intent.ACTION_HEADSET_PLUG)
         ContextCompat.registerReceiver(this, headsetReceiver, hsFilter, ContextCompat.RECEIVER_EXPORTED)
+
+        try {
+            val am = getSystemService(AudioManager::class.java)
+            knownRouteIds.clear()
+            knownRouteIds.addAll(am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { it.id })
+            am.registerAudioDeviceCallback(audioRouteCallback, mainHandler)
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to register audio route callback", e)
+        }
     }
 
     private fun pausePlayback() {
@@ -590,7 +673,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                 mediaSession.controller.transportControls.pause()
             } catch (_: Exception) {}
         }
-        webView?.evaluateJavascript("actPlayPause(false)", null)
+        wakeAndRun("actPlayPause(false)")
     }
 
     private fun resumePlayback() {
@@ -602,7 +685,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                 mediaSession.controller.transportControls.play()
             } catch (_: Exception) {}
         }
-        webView?.evaluateJavascript("actPlayPause(true)", null)
+        wakeAndRun("actPlayPause(true)")
     }
 
     fun updateFromMediaStatus(json: String) {
@@ -611,6 +694,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
             val obj = org.json.JSONObject(json)
             currentTitle = obj.optString("track", "")
             currentArtist = obj.optString("artist", "")
+            currentAlbum = obj.optString("album", "")
             val coverUrl = obj.optString("cover", "")
 
             if (coverUrl.isNotEmpty() && coverUrl != "null" && coverUrl != lastCoverUrl) {
@@ -665,24 +749,24 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
             )
             .addCustomAction(
                 CUSTOM_ACTION_TOGGLE_FAV,
-                if (isFavorite) "Unlike" else "Like",
+                if (isFavorite) getString(R.string.notif_action_unlike) else getString(R.string.notif_action_like),
                 favIcon
             )
             .addCustomAction(
                 CUSTOM_ACTION_TOGGLE_SHUFFLE,
                 when {
-                    isSmartShuffle -> "Disable smart shuffle"
-                    isShuffle -> "Disable shuffle"
-                    else -> "Enable shuffle"
+                    isSmartShuffle -> getString(R.string.notif_shuffle_disable_smart)
+                    isShuffle -> getString(R.string.notif_shuffle_disable)
+                    else -> getString(R.string.notif_shuffle_enable)
                 },
                 shuffleIcon
             )
             .addCustomAction(
                 CUSTOM_ACTION_REPEAT,
                 when (isRepeat) {
-                    "true" -> "Disable repeat"
-                    "mixed" -> "Disable repeat one"
-                    else -> "Enable repeat"
+                    "true" -> getString(R.string.notif_repeat_disable)
+                    "mixed" -> getString(R.string.notif_repeat_disable_one)
+                    else -> getString(R.string.notif_repeat_enable)
                 },
                 repeatIcon
             )
@@ -696,7 +780,7 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         val builder = MediaMetadataCompat.Builder()
             .putString(MediaMetadataCompat.METADATA_KEY_TITLE, currentTitle)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, currentArtist)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, "Spotilol")
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, currentAlbum)
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, currentDuration)
         coverBitmap?.let { bmp ->
             builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bmp)
@@ -743,9 +827,9 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         return try {
             buildNotification()
         } catch (e: Exception) {
-            android.util.Log.e(TAG, "Failed to build notification", e)
+            Logger.e(TAG, "Failed to build notification", e)
             NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Spotilol")
+                .setContentTitle(getString(R.string.app_name))
                 .setSmallIcon(R.drawable.ic_notification)
                 .setOngoing(true)
                 .build()
@@ -772,17 +856,17 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         )
 
         val prevAction = NotificationCompat.Action.Builder(
-            tintedIcon(R.drawable.ic_skip_prev), "Previous", getActionPendingIntent(ACTION_PREV)
+            tintedIcon(R.drawable.ic_skip_prev), getString(R.string.notif_action_previous), getActionPendingIntent(ACTION_PREV)
         ).build()
 
         val playPauseAction = NotificationCompat.Action.Builder(
             tintedIcon(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
-            if (isPlaying) "Pause" else "Play",
+            if (isPlaying) getString(R.string.notif_action_pause) else getString(R.string.notif_action_play),
             getActionPendingIntent(ACTION_PLAY_PAUSE)
         ).build()
 
         val nextAction = NotificationCompat.Action.Builder(
-            tintedIcon(R.drawable.ic_skip_next), "Next", getActionPendingIntent(ACTION_NEXT)
+            tintedIcon(R.drawable.ic_skip_next), getString(R.string.notif_action_next), getActionPendingIntent(ACTION_NEXT)
         ).build()
 
         val shuffleAction = NotificationCompat.Action.Builder(
@@ -794,16 +878,16 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
                 }
             ),
             when {
-                isSmartShuffle -> "Disable smart shuffle"
-                isShuffle -> "Disable shuffle"
-                else -> "Enable shuffle"
+                isSmartShuffle -> getString(R.string.notif_shuffle_disable_smart)
+                isShuffle -> getString(R.string.notif_shuffle_disable)
+                else -> getString(R.string.notif_shuffle_enable)
             },
             getActionPendingIntent(ACTION_SHUFFLE)
         ).build()
 
         val favAction = NotificationCompat.Action.Builder(
             tintedIcon(if (isFavorite) R.drawable.ic_favorite_filled else R.drawable.ic_favorite),
-            if (isFavorite) "Unlike" else "Like",
+            if (isFavorite) getString(R.string.notif_action_unlike) else getString(R.string.notif_action_like),
             getActionPendingIntent(ACTION_FAVORITE)
         ).build()
 
@@ -815,9 +899,9 @@ class MediaNotificationService : MediaBrowserServiceCompat() {
         actions.add(favAction)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(currentTitle.ifEmpty { "Spotilol" })
+            .setContentTitle(currentTitle.ifEmpty { getString(R.string.app_name) })
             .setContentText(currentArtist)
-            .setSubText("Spotilol")
+            .setSubText(getString(R.string.app_name))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(contentIntent)
             .setOngoing(true)

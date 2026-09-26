@@ -1,6 +1,7 @@
 package com.project.lol.ui.components
 
 import android.webkit.WebViewClient
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -19,9 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -32,19 +30,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.project.lol.R
+import compose.icons.TablerIcons
+import compose.icons.tablericons.CloudOff
+import compose.icons.tablericons.Refresh
 
-enum class WebViewErrorType(val title: String, val message: String) {
-    NO_INTERNET("You're Offline", "No internet connection detected.\nCheck your network and try again."),
-    TIMEOUT("Connection Timed Out", "Spotify took too long to respond.\nThe connection was dropped."),
-    CONNECT_FAILED("Can't Reach Spotify", "Couldn't establish a connection\nto Spotify's servers."),
-    SSL_ERROR("Secure Connection Failed", "Couldn't establish a secure connection.\nIf using proxy mode, check the CA certificate."),
-    SERVER_ERROR("Server Error", "Spotify's servers hit a snag.\nTry again in a moment."),
-    GENERIC("Something Went Wrong", "An unexpected error occurred\nwhile loading Spotify.")
+enum class WebViewErrorType(@StringRes val titleRes: Int, @StringRes val messageRes: Int) {
+    NO_INTERNET(R.string.error_title_no_internet, R.string.error_message_no_internet),
+    TIMEOUT(R.string.error_title_timeout, R.string.error_message_timeout),
+    CONNECT_FAILED(R.string.error_title_connect_failed, R.string.error_message_connect_failed),
+    SSL_ERROR(R.string.error_title_ssl, R.string.error_message_ssl),
+    SERVER_ERROR(R.string.error_title_server, R.string.error_message_server),
+    GENERIC(R.string.error_title_generic, R.string.error_message_generic)
 }
 
 fun mapWebViewError(errorCode: Int): WebViewErrorType = when (errorCode) {
@@ -100,7 +103,7 @@ fun ErrorScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.CloudOff,
+                    imageVector = TablerIcons.CloudOff,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(44.dp)
@@ -110,7 +113,7 @@ fun ErrorScreen(
             Spacer(Modifier.height(28.dp))
 
             Text(
-                text = errorType.title,
+                text = stringResource(errorType.titleRes),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -120,7 +123,7 @@ fun ErrorScreen(
             Spacer(Modifier.height(10.dp))
 
             Text(
-                text = errorType.message,
+                text = stringResource(errorType.messageRes),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -141,13 +144,13 @@ fun ErrorScreen(
                 )
             ) {
                 Icon(
-                    imageVector = Icons.Default.Refresh,
+                    imageVector = TablerIcons.Refresh,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Retry",
+                    text = stringResource(R.string.error_retry),
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp
                 )
@@ -157,7 +160,7 @@ fun ErrorScreen(
 
             if (errorDescription.isNotBlank()) {
                 Text(
-                    text = "Error $errorCode - $errorDescription",
+                    text = stringResource(R.string.error_detail, errorCode, errorDescription),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     maxLines = 1,

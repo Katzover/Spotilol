@@ -44,7 +44,7 @@ fun SpotifyTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = SairaTypography,
+        typography = RalewayTypography,
         content = content
     )
 }

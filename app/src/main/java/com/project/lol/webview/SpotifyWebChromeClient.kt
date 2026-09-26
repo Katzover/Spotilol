@@ -6,11 +6,14 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.webkit.ConsoleMessage
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.project.lol.util.LogLevel
+import com.project.lol.util.Logger
 import com.project.lol.webview.injections.BrowserSpoof
 import com.project.lol.webview.injections.FbGdprBypass
 import com.project.lol.webview.injections.GoogleSpoof
@@ -26,15 +29,33 @@ class SpotifyWebChromeClient(
     private var childWebView: WebView? = null
 
     companion object {
+        private const val TAG = "wv.chrome"
+        private const val JS_TAG = "wv.js"
         private const val DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
     }
 
     override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+        Logger.i(TAG, "custom view shown: ${view?.javaClass?.simpleName ?: "null"}")
         onShowCustomView?.invoke(view, callback)
     }
 
     override fun onHideCustomView() {
+        Logger.i(TAG, "custom view hidden")
         onHideCustomView?.invoke()
+    }
+
+    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+        consoleMessage?.let { msg ->
+            val level = when (msg.messageLevel()) {
+                ConsoleMessage.MessageLevel.ERROR -> LogLevel.ERROR
+                ConsoleMessage.MessageLevel.WARNING -> LogLevel.WARN
+                ConsoleMessage.MessageLevel.DEBUG -> LogLevel.DEBUG
+                else -> LogLevel.INFO
+            }
+            val source = "${msg.sourceId() ?: "web"}:${msg.lineNumber()}"
+            Logger.log(level, JS_TAG, "$source ${msg.message()}")
+        }
+        return true
     }
 
     private fun isSpotifyUrl(url: String): Boolean {
@@ -87,6 +108,7 @@ class SpotifyWebChromeClient(
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    Logger.d(TAG, "child page finished: $url")
                     if (url != null && url.startsWith("https://www.facebook.com/privacy/consent/gdp/")) {
                         view?.evaluateJavascript(FbGdprBypass.CONTENT, null)
                     }
@@ -98,6 +120,7 @@ class SpotifyWebChromeClient(
                     val targetUrl = url ?: return false
                     val allowed = isSpotifyUrl(targetUrl) || isOAuthUrl(targetUrl)
                     if (!allowed) {
+                        Logger.w(TAG, "child window blocked: $targetUrl")
                         try { view?.destroy() } catch (_: Exception) {}
                         return true
                     }
@@ -110,6 +133,7 @@ class SpotifyWebChromeClient(
         val transport = resultMsg?.obj as? WebView.WebViewTransport
         transport?.webView = newWebView
         resultMsg?.sendToTarget()
+        Logger.i(TAG, "child window created: $context")
         return true
     }
 
@@ -120,6 +144,7 @@ class SpotifyWebChromeClient(
     ): Boolean {
         if (filePathCallback == null) return false
         val acceptTypes = fileChooserParams?.acceptTypes ?: emptyArray()
+        Logger.i(TAG, "file chooser: ${acceptTypes.joinToString(",")}")
         return onFileChooser?.invoke(filePathCallback, acceptTypes) ?: false
     }
 
@@ -128,20 +153,27 @@ class SpotifyWebChromeClient(
         permissionRequest ?: return
         Handler(Looper.getMainLooper()).post {
             val resources = permissionRequest.resources
+            Logger.d(TAG, "permission request: ${permissionRequest.origin} ${resources.joinToString(",")}")
             if (resources.contains(PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID)) {
                 permissionRequest.grant(resources)
+                Logger.i(TAG, "protected media granted")
             } else {
                 permissionRequest.deny()
+                Logger.w(TAG, "permission denied: ${resources.joinToString(",")}")
             }
         }
     }
 
     override fun onProgressChanged(view: WebView?, newProgress: Int) {
         super.onProgressChanged(view, newProgress)
+        if (newProgress == 100 || newProgress == 25 || newProgress == 50 || newProgress == 75) {
+            Logger.d(TAG, "load progress ${newProgress}%")
+        }
         onProgressChanged?.invoke(newProgress)
     }
 
     fun cleanup() {
+        Logger.d(TAG, "chrome client cleanup")
         childWebView?.let {
             try { it.destroy() } catch (_: Exception) {}
         }

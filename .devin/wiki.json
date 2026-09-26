@@ -80,7 +80,7 @@
     },
     {
       "title": "UI Layer",
-      "purpose": "Documentation of ui/: MainActivity (Jetpack Compose host for the WebView, custom player overlay, PiP handling, service start/stop), SplashActivity (animated splash), OfflineActivity (downloaded tracks UI), screens/SettingsScreen (all preferences: AndAuto/Android Auto, APlayMode, ConnectionMode normal/proxy, AmoledTheme, CustomCss, BtAutoPause/Resume, sleep timer, PlayerMode spotilol/original, profiles), and theme/ (Saira font family, AMOLED dark theme)",
+      "purpose": "Documentation of ui/: MainActivity (Jetpack Compose host for the WebView, custom player overlay, PiP handling, service start/stop), SplashActivity (animated splash), OfflineActivity (downloaded tracks UI), components/SettingsDialog (edge-to-edge Material 3 dialog with a 32% scrim, a 28dp surfaceContainerHigh card and a SecondaryScrollableTabRow), screens/SettingsScreen (all preferences grouped in five tabs: Appearance, Playback, Content, Advanced and About, covering AndAuto/Android Auto, APlayMode, ConnectionMode normal/proxy, AmoledTheme, CustomCss, BtAutoPause/Resume, sleep timer, PlayerMode spotilol/original, profiles; the DEBUG section is hidden until five taps on the WebView Engine tile and is locked again by holding that tile, and it carries a BETA badge plus an info tooltip), and theme/ (Raleway font family, AMOLED dark theme)",
       "parent": "Architecture Overview"
     },
     {

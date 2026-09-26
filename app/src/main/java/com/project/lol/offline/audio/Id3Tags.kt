@@ -1,6 +1,6 @@
 package com.project.lol.offline.audio
 
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
@@ -60,7 +60,7 @@ internal object Id3Tags {
             }
             return true
         } catch (t: Throwable) {
-            Log.w(TAG, "id3: failed for ${file.name}: ${t.message}")
+            Logger.w(TAG, "id3: failed for ${file.name}: ${t.message}")
             runCatching { temp.delete() }
             return false
         }

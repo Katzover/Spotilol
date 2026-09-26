@@ -1,6 +1,6 @@
 package com.project.lol.offline.audio
 
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 
 /**
@@ -48,7 +48,7 @@ internal class WebmOpusReader private constructor(
             return try {
                 Parser(file.readBytes(), expectedChannels).parse()
             } catch (t: Throwable) {
-                Log.w(TAG, "webm: in-process demux unavailable (${t.message}), using MediaExtractor")
+                Logger.w(TAG, "webm: in-process demux unavailable (${t.message}), using MediaExtractor")
                 null
             }
         }

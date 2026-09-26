@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
-import android.util.Log
+import com.project.lol.util.Logger
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Collections
@@ -56,15 +56,15 @@ class PoTokenWebView private constructor(
             override fun onConsoleMessage(m: ConsoleMessage): Boolean {
                 val msg = m.message()
                 when (m.messageLevel()) {
-                    ConsoleMessage.MessageLevel.ERROR -> Log.e(TAG, "JS: $msg")
-                    ConsoleMessage.MessageLevel.WARNING -> Log.w(TAG, "JS: $msg")
+                    ConsoleMessage.MessageLevel.ERROR -> Logger.e(TAG, "JS: $msg")
+                    ConsoleMessage.MessageLevel.WARNING -> Logger.w(TAG, "JS: $msg")
                     else -> {}
                 }
 
                 if (msg.contains("Uncaught")) {
                     val fmt = "\"$msg\", source: ${m.sourceId()} (${m.lineNumber()})"
                     val exception = BadWebViewException(fmt)
-                    Log.e(TAG, "This WebView implementation is broken: $fmt")
+                    Logger.e(TAG, "This WebView implementation is broken: $fmt")
 
                     onInitializationErrorCloseAndCancel(exception)
                     popAllPoTokenContinuations().forEach { (_, cont) -> cont.resumeWithException(exception) }
@@ -128,7 +128,7 @@ class PoTokenWebView private constructor(
     @JavascriptInterface
     fun onJsInitializationError(error: String) {
         if (BuildConfig.DEBUG) {
-            Log.e(TAG, "Initialization error from JavaScript: $error")
+            Logger.e(TAG, "Initialization error from JavaScript: $error")
         }
         onInitializationErrorCloseAndCancel(buildExceptionForJsError(error))
     }
@@ -170,7 +170,7 @@ class PoTokenWebView private constructor(
                     null
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse integrity token data: ${e.message}", e)
+                Logger.e(TAG, "Failed to parse integrity token data: ${e.message}", e)
                 onInitializationErrorCloseAndCancel(PoTokenException("parseIntegrityTokenData failed: ${e.message}"))
             }
         }
@@ -216,7 +216,7 @@ class PoTokenWebView private constructor(
     @JavascriptInterface
     fun onObtainPoTokenError(identifier: String, error: String) {
         if (BuildConfig.DEBUG) {
-            Log.e(TAG, "obtainPoToken error from JavaScript: $error")
+            Logger.e(TAG, "obtainPoToken error from JavaScript: $error")
         }
         popPoTokenContinuation(identifier)?.resumeWithException(buildExceptionForJsError(error))
     }

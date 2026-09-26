@@ -4,7 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 import java.nio.ByteBuffer
 
@@ -26,7 +26,7 @@ object Mp4Remux {
                 }
             }
             val format = trackFormat ?: run {
-                Log.w(TAG, "mp4Remux: no audio track in ${input.name}")
+                Logger.w(TAG, "mp4Remux: no audio track in ${input.name}")
                 return false
             }
 
@@ -55,7 +55,7 @@ object Mp4Remux {
             muxer.stop()
             return output.length() > 0
         } catch (e: Exception) {
-            Log.e(TAG, "mp4Remux: failed: ${e.message}", e)
+            Logger.e(TAG, "mp4Remux: failed: ${e.message}", e)
             runCatching { output.delete() }
             return false
         } finally {

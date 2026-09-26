@@ -5,7 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 
 /**
@@ -58,14 +58,14 @@ object PlayerJsFetcher {
             // Fetch player hash from iframe_api
             val hash = fetchPlayerHash()
             if (hash == null) {
-                Log.e(TAG, "Failed to extract player hash from iframe_api")
+                Logger.e(TAG, "Failed to extract player hash from iframe_api")
                 return@withContext null
             }
 
             // Download player JS
             val playerJs = downloadPlayerJs(hash)
             if (playerJs == null) {
-                Log.e(TAG, "Failed to download player JS for hash=$hash")
+                Logger.e(TAG, "Failed to download player JS for hash=$hash")
                 return@withContext null
             }
 
@@ -74,7 +74,7 @@ object PlayerJsFetcher {
 
             Pair(playerJs, hash)
         } catch (e: Exception) {
-            Log.e(TAG, "getPlayerJs exception: ${e.message}", e)
+            Logger.e(TAG, "getPlayerJs exception: ${e.message}", e)
             null
         }
     }
@@ -93,7 +93,7 @@ object PlayerJsFetcher {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to invalidate cache: ${e.message}", e)
+            Logger.e(TAG, "Failed to invalidate cache: ${e.message}", e)
         }
     }
 
@@ -135,7 +135,7 @@ object PlayerJsFetcher {
 
             return Pair(playerJs, hash)
         } catch (e: Exception) {
-            Log.e(TAG, "Error reading cache: ${e.message}", e)
+            Logger.e(TAG, "Error reading cache: ${e.message}", e)
             return null
         }
     }
@@ -152,7 +152,7 @@ object PlayerJsFetcher {
             getHashFile().writeText("$hash\n${System.currentTimeMillis()}")
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error writing cache: ${e.message}", e)
+            Logger.e(TAG, "Error writing cache: ${e.message}", e)
         }
     }
 
@@ -166,7 +166,7 @@ object PlayerJsFetcher {
         val response = httpClient.newCall(request).execute()
 
         if (!response.isSuccessful) {
-            Log.e(TAG, "iframe_api HTTP ${response.code}")
+            Logger.e(TAG, "iframe_api HTTP ${response.code}")
             return null
         }
 
@@ -174,7 +174,7 @@ object PlayerJsFetcher {
 
         val match = PLAYER_HASH_REGEX.find(body)
         if (match == null) {
-            Log.e(TAG, "Could not find player hash in iframe_api response")
+            Logger.e(TAG, "Could not find player hash in iframe_api response")
             return null
         }
 
@@ -193,7 +193,7 @@ object PlayerJsFetcher {
         val response = httpClient.newCall(request).execute()
 
         if (!response.isSuccessful) {
-            Log.e(TAG, "player.js download HTTP ${response.code}")
+            Logger.e(TAG, "player.js download HTTP ${response.code}")
             return null
         }
 

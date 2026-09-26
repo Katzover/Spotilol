@@ -1,6 +1,6 @@
 package com.project.lol.offline.audio
 
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -21,18 +21,18 @@ object Mp4Tags {
 
     fun writeTags(file: File, title: String, artist: String, album: String, cover: ByteArray?): Boolean {
         val moov = findMoovAtEnd(file) ?: run {
-            Log.w(TAG, "mp4TagWriter: no trailing moov atom in ${file.name}")
+            Logger.w(TAG, "mp4TagWriter: no trailing moov atom in ${file.name}")
             return false
         }
         val moovChildren = walk(file, moov.offset + moov.headerSize, moov.offset + moov.size) ?: run {
-            Log.w(TAG, "mp4TagWriter: cannot walk moov atoms in ${file.name}")
+            Logger.w(TAG, "mp4TagWriter: cannot walk moov atoms in ${file.name}")
             return false
         }
         val existingUdta = moovChildren.lastOrNull { it.id == "udta" }
         val existingItems = existingUdta?.let { readIlstItems(file, it) } ?: emptyList()
         val udta = buildUdta(existingItems, title, artist, album, cover)
         if (udta.isEmpty()) {
-            Log.w(TAG, "mp4TagWriter: nothing to write for ${file.name}")
+            Logger.w(TAG, "mp4TagWriter: nothing to write for ${file.name}")
             return false
         }
 
@@ -40,7 +40,7 @@ object Mp4Tags {
         val regionEnd = existingUdta?.let { it.offset + it.size } ?: regionStart
         val newMoovSize = moov.size - (regionEnd - regionStart) + udta.size
         if (newMoovSize > 0xFFFFFFFFL) {
-            Log.w(TAG, "mp4TagWriter: moov too large for 32 bit size")
+            Logger.w(TAG, "mp4TagWriter: moov too large for 32 bit size")
             return false
         }
 
@@ -66,7 +66,7 @@ object Mp4Tags {
             }
             return true
         } catch (e: Exception) {
-            Log.w(TAG, "mp4TagWriter: failed for ${file.name}: ${e.message}")
+            Logger.w(TAG, "mp4TagWriter: failed for ${file.name}: ${e.message}")
             runCatching { tmp.delete() }
             return false
         }

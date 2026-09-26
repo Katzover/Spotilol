@@ -6,7 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
+import com.project.lol.util.Logger
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -88,7 +88,7 @@ object OfflineStore {
                 }
             )
             file.writeText(root.toString())
-        }.onFailure { Log.w(TAG, "saveMetadata: failed to write manifest: ${it.message}") }
+        }.onFailure { Logger.w(TAG, "saveMetadata: failed to write manifest: ${it.message}") }
 
         if (coverUrl.isNullOrBlank()) return
         if (coverFile(context, trackId) != null) return
@@ -102,7 +102,7 @@ object OfflineStore {
                     input.copyTo(output)
                 }
             }
-        }.onFailure { Log.w(TAG, "saveMetadata: cover fetch failed: ${it.message}") }
+        }.onFailure { Logger.w(TAG, "saveMetadata: cover fetch failed: ${it.message}") }
     }
 
     fun removeMetadata(context: Context, trackId: String) {
@@ -257,7 +257,7 @@ object OfflineStore {
                 File(song.uri.path ?: return@runCatching false).delete()
             }
         }.getOrElse {
-            Log.w(TAG, "deleteSong: failed to delete ${song.uri}: ${it.message}")
+            Logger.w(TAG, "deleteSong: failed to delete ${song.uri}: ${it.message}")
             false
         }
         removeMetadata(context, song.id)

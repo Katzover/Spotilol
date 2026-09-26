@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
+import com.project.lol.R
 import com.project.lol.profile.ProfileManager
 import com.project.lol.ui.screens.OfflineScreen
 import com.project.lol.ui.theme.SpotifyTheme
@@ -106,18 +107,18 @@ class OfflineActivity : ComponentActivity() {
                     },
                     onSaveProfile = { name, cookies ->
                         ProfileManager.saveProfile(this, name, cookies)
-                        Toast.makeText(this, "Account saved", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.offline_act_toast_account_saved), Toast.LENGTH_SHORT).show()
                     },
                     onLoadProfile = { cookies ->
                         if (!ProfileManager.applyProfile(this, cookies)) {
-                            Toast.makeText(this, "Profile could not be loaded", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, getString(R.string.offline_act_toast_profile_load_failed), Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(this, "Profile loaded", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, getString(R.string.offline_act_toast_profile_loaded), Toast.LENGTH_SHORT).show()
                         }
                     },
                     onDeleteProfile = { name ->
                         ProfileManager.deleteProfile(this, name)
-                        Toast.makeText(this, "Profile deleted", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.offline_act_toast_profile_deleted), Toast.LENGTH_SHORT).show()
                     },
                     onClearCache = { clearWebViewCache() },
                     onClearData = { clearAllData() },
@@ -148,7 +149,7 @@ class OfflineActivity : ComponentActivity() {
         wv.clearCache(true)
         wv.clearHistory()
         wv.destroy()
-        Toast.makeText(this, "Cache cleared successfully", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.offline_act_toast_cache_cleared), Toast.LENGTH_SHORT).show()
     }
 
     private fun clearAllData() {
@@ -161,7 +162,7 @@ class OfflineActivity : ComponentActivity() {
         CookieManager.getInstance().removeAllCookies(null)
         CookieManager.getInstance().flush()
         prefs.edit().putBoolean("LoggedIn", false).apply()
-        Toast.makeText(this, "All data cleared", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.offline_act_toast_all_data_cleared), Toast.LENGTH_SHORT).show()
     }
 
     private fun restartToSplash() {

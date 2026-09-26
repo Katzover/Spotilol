@@ -18,6 +18,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,17 +36,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,16 +48,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import com.project.lol.searchEngine.GenericSearchEngine
 import com.project.lol.searchEngine.SearchableFieldExtractor
 import androidx.compose.runtime.Composable
@@ -80,13 +66,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,7 +97,21 @@ import com.project.lol.R
 import com.project.lol.offline.OfflineSong
 import com.project.lol.offline.OfflineStore
 import com.project.lol.service.OfflineMediaService
-import com.project.lol.ui.components.SettingsDrawer
+import com.project.lol.ui.components.SettingsDialog
+import com.project.lol.util.BuildInfo
+import compose.icons.TablerIcons
+import compose.icons.tablericons.CloudOff
+import compose.icons.tablericons.Logout
+import compose.icons.tablericons.Menu2
+import compose.icons.tablericons.Music
+import compose.icons.tablericons.PlayerPause
+import compose.icons.tablericons.PlayerPlay
+import compose.icons.tablericons.PlayerSkipBack
+import compose.icons.tablericons.PlayerSkipForward
+import compose.icons.tablericons.Search
+import compose.icons.tablericons.Settings
+import compose.icons.tablericons.Trash
+import compose.icons.tablericons.X
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -134,8 +146,10 @@ fun OfflineScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    var settingsDrawerOpen by remember { mutableStateOf(false) }
+    var settingsDialogOpen by remember { mutableStateOf(false) }
     var showQuickMenu by remember { mutableStateOf(false) }
 
     var songs by remember { mutableStateOf<List<OfflineSong>>(emptyList()) }
@@ -143,6 +157,7 @@ fun OfflineScreen(
     var currentIndex by remember { mutableIntStateOf(-1) }
     var playerSong by remember { mutableStateOf<OfflineSong?>(null) }
     var pendingDelete by remember { mutableStateOf<OfflineSong?>(null) }
+    var confirmDeleteAll by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var positionMs by remember { mutableIntStateOf(0) }
     var durationMs by remember { mutableIntStateOf(0) }
@@ -150,6 +165,7 @@ fun OfflineScreen(
 
     val mediaPlayer = remember { MediaPlayer() }
     var searchQuery by remember { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<List<OfflineSong>?>(null) }
 
     val searchEngine = remember { GenericSearchEngine<OfflineSong>(maxResult = 100) }
@@ -185,7 +201,7 @@ fun OfflineScreen(
                 Intent(context, OfflineMediaService::class.java).apply {
                     putExtra("title", song.title)
                     putExtra("artist", song.artist)
-                    putExtra("album", song.album.ifBlank { "Spotilol" })
+                    putExtra("album", song.album)
                     putExtra("duration", durationMs.toLong())
                     putExtra("playing", isPlaying)
                     putExtra("position", positionMs.toLong())
@@ -250,14 +266,40 @@ fun OfflineScreen(
             val ok = withContext(Dispatchers.IO) { OfflineStore.deleteSong(context, song) }
             songs = songs.filterNot { it.id == song.id && it.uri == song.uri }
             if (!ok) {
-                Toast.makeText(context, "Could not delete file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.offline_toast_could_not_delete_file), Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    BackHandler(enabled = settingsDrawerOpen || searchQuery.isNotBlank()) {
+    fun performDeleteAll() {
+        val all = songs
+        if (all.isEmpty()) return
+        stopAndClear()
+        searchQuery = ""
+        searchResults = null
+        songs = emptyList()
+        scope.launch {
+            val failed = withContext(Dispatchers.IO) {
+                all.count { song -> !OfflineStore.deleteSong(context, song) }
+            }
+            if (failed > 0) {
+                Toast.makeText(
+                    context,
+                    if (failed == 1) context.getString(R.string.offline_toast_could_not_delete_one_file) else context.getString(R.string.offline_toast_could_not_delete_files, failed),
+                    Toast.LENGTH_SHORT
+                ).show()
+                songs = withContext(Dispatchers.IO) { OfflineStore.loadSongs(context) }
+            }
+        }
+    }
+
+    BackHandler(enabled = settingsDialogOpen || searchFocused || searchQuery.isNotBlank()) {
         when {
-            settingsDrawerOpen -> settingsDrawerOpen = false
+            settingsDialogOpen -> settingsDialogOpen = false
+            searchFocused -> {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+            }
             else -> searchQuery = ""
         }
     }
@@ -309,9 +351,9 @@ fun OfflineScreen(
         }
     }
 
-    SettingsDrawer(
-        visible = settingsDrawerOpen,
-        onClose = { settingsDrawerOpen = false },
+    SettingsDialog(
+        visible = settingsDialogOpen,
+        onClose = { settingsDialogOpen = false },
         prefs = prefs,
         materialYou = materialYou,
         onMaterialYouChange = onMaterialYouChange,
@@ -348,22 +390,22 @@ fun OfflineScreen(
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Spotilol",
+                                    text = stringResource(R.string.offline_app_name),
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    text = "v$versionName",
+                                    text = stringResource(R.string.offline_version, versionName, BuildInfo.id),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         },
                         navigationIcon = {
-                            IconButton(onClick = { settingsDrawerOpen = true }) {
+                            IconButton(onClick = { settingsDialogOpen = true }) {
                                 Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Settings",
+                                    imageVector = TablerIcons.Menu2,
+                                    contentDescription = stringResource(R.string.offline_desc_settings),
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
@@ -371,8 +413,8 @@ fun OfflineScreen(
                         actions = {
                             IconButton(onClick = onExit) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                                    contentDescription = "Exit offline mode",
+                                    imageVector = TablerIcons.Logout,
+                                    contentDescription = stringResource(R.string.offline_desc_exit_offline_mode),
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
@@ -393,68 +435,56 @@ fun OfflineScreen(
                     .padding(innerPadding)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        text = when {
-                            loading -> "Loading…"
-                            searchQuery.isNotBlank() -> {
-                                val n = visibleSongs.size
-                                if (n == 0) {
-                                    "No results for \"${searchQuery.trim()}\""
-                                } else {
-                                    "$n result${if (n == 1) "" else "s"} for \"${searchQuery.trim()}\""
-                                }
-                            }
-                            songs.isEmpty() -> "No downloads yet"
-                            else -> "${songs.size} song${if (songs.size == 1) "" else "s"} available offline"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Column(
                         modifier = Modifier
-                            .padding(horizontal = 20.dp)
-                            .padding(top = if (hideTopBar) 60.dp else 12.dp, bottom = 8.dp)
-                    )
-
-                    if (!loading && songs.isNotEmpty()) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .padding(bottom = 8.dp),
-                            placeholder = { Text("Search your downloads") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Clear search",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp)
+                            .padding(top = if (hideTopBar) 56.dp else 10.dp, bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = when {
+                                loading -> stringResource(R.string.offline_status_loading)
+                                searchQuery.isNotBlank() -> {
+                                    val n = visibleSongs.size
+                                    if (n == 0) {
+                                        stringResource(R.string.offline_status_no_results_for, searchQuery.trim())
+                                    } else if (n == 1) {
+                                        stringResource(R.string.offline_status_one_result_for, searchQuery.trim())
+                                    } else {
+                                        stringResource(R.string.offline_status_results_for, n, searchQuery.trim())
                                     }
                                 }
+                                songs.isEmpty() -> stringResource(R.string.offline_status_no_downloads_yet)
+                                songs.size == 1 -> stringResource(R.string.offline_status_one_song_available_offline)
+                                else -> stringResource(R.string.offline_status_songs_available_offline, songs.size)
                             },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                cursorColor = MaterialTheme.colorScheme.primary,
-                                focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+
+                        if (!loading && songs.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    OfflineSearchField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        onSearchFocusChange = { searchFocused = it }
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                CompactIconButton(
+                                    icon = TablerIcons.Trash,
+                                    contentDescription = stringResource(R.string.offline_desc_delete_all_downloads),
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                    onClick = { confirmDeleteAll = true },
+                                    boxSize = 40.dp,
+                                    iconSize = 20.dp
+                                )
+                            }
+                        }
                     }
 
                     when {
@@ -474,20 +504,20 @@ fun OfflineScreen(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
-                                    imageVector = Icons.Default.Search,
+                                    imageVector = TablerIcons.Search,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(56.dp)
+                                    modifier = Modifier.size(40.dp)
                                 )
-                                Spacer(Modifier.height(16.dp))
+                                Spacer(Modifier.height(10.dp))
                                 Text(
-                                    text = "No results",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = stringResource(R.string.offline_empty_no_results),
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = "Nothing in your downloads matches \"${searchQuery.trim()}\"",
+                                    text = stringResource(R.string.offline_empty_nothing_matches, searchQuery.trim()),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
@@ -502,20 +532,20 @@ fun OfflineScreen(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
-                                    imageVector = Icons.Default.CloudOff,
+                                    imageVector = TablerIcons.CloudOff,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(56.dp)
+                                    modifier = Modifier.size(40.dp)
                                 )
-                                Spacer(Modifier.height(16.dp))
+                                Spacer(Modifier.height(10.dp))
                                 Text(
-                                    text = "Nothing here yet",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = stringResource(R.string.offline_empty_nothing_here_yet),
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = "Download songs with the download button\nin the player, then come back",
+                                    text = stringResource(R.string.offline_empty_download_hint),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center
@@ -526,7 +556,7 @@ fun OfflineScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth(),
-                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 130.dp),
+                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 112.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             items(visibleSongs, key = { "${it.id}-${it.uri}" }) { song ->
@@ -573,7 +603,8 @@ fun OfflineScreen(
                             },
                             onTogglePlay = { togglePlayPause() },
                             onPrev = { step(-1) },
-                            onNext = { step(1) }
+                            onNext = { step(1) },
+                            onClose = { stopAndClear() }
                         )
                     }
                 }
@@ -591,7 +622,7 @@ fun OfflineScreen(
                         ) {
                             Icon(
                                 painter = painterResource(R.drawable.ic_launcher_playstore),
-                                contentDescription = "Quick actions",
+                                contentDescription = stringResource(R.string.offline_desc_quick_actions),
                                 tint = Color.Unspecified,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -619,25 +650,25 @@ fun OfflineScreen(
                                                 .fillMaxWidth()
                                                 .clickable {
                                                     showQuickMenu = false
-                                                    settingsDrawerOpen = true
+                                                    settingsDialogOpen = true
                                                 }
                                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Settings,
+                                                imageVector = TablerIcons.Settings,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             Spacer(Modifier.width(12.dp))
                                             Text(
-                                                text = "Settings",
+                                                text = stringResource(R.string.offline_menu_settings),
                                                 style = MaterialTheme.typography.bodyLarge,
                                                 fontWeight = FontWeight.SemiBold,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             Icon(
-                                                imageVector = Icons.Default.Menu,
+                                                imageVector = TablerIcons.Menu2,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                             )
@@ -656,13 +687,13 @@ fun OfflineScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                                imageVector = TablerIcons.Logout,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurface
                                             )
                                             Spacer(Modifier.width(12.dp))
                                             Text(
-                                text = "Exit Offline Mode",
+                                text = stringResource(R.string.offline_menu_exit_offline_mode),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -681,14 +712,14 @@ fun OfflineScreen(
             shape = RoundedCornerShape(28.dp),
             title = {
                 Text(
-                    text = "Delete Song?",
+                    text = stringResource(R.string.offline_dialog_delete_song_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "Remove \"${songToDelete.title}\" by ${songToDelete.artist.ifBlank { "Unknown artist" }} from your downloads?",
+                    text = stringResource(R.string.offline_dialog_delete_song_message, songToDelete.title, songToDelete.artist.ifBlank { stringResource(R.string.offline_unknown_artist) }),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -699,7 +730,7 @@ fun OfflineScreen(
                     performDelete(songToDelete)
                 }) {
                     Text(
-                        text = "Delete",
+                        text = stringResource(R.string.offline_dialog_delete),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -707,7 +738,50 @@ fun OfflineScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.offline_dialog_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    if (confirmDeleteAll) {
+        val total = songs.size
+        AlertDialog(
+            onDismissRequest = { confirmDeleteAll = false },
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Text(
+                    text = stringResource(R.string.offline_dialog_delete_all_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (total == 1) {
+                        stringResource(R.string.offline_dialog_delete_all_message_one)
+                    } else {
+                        stringResource(R.string.offline_dialog_delete_all_message_many, total)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteAll = false
+                    performDeleteAll()
+                }) {
+                    Text(
+                        text = stringResource(R.string.offline_dialog_delete_all),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteAll = false }) {
+                    Text(stringResource(R.string.offline_dialog_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -745,6 +819,172 @@ private fun playAt(
 }
 
 @Composable
+private fun CompactIconButton(
+    icon: ImageVector,
+    contentDescription: String?,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    boxSize: Dp = 32.dp,
+    iconSize: Dp = 18.dp
+) {
+    Box(
+        modifier = modifier
+            .size(boxSize)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+@Composable
+private fun OfflineSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSearchFocusChange: (Boolean) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        ) {
+            Icon(
+                imageVector = TablerIcons.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { onSearchFocusChange(it.isFocused) },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { inner ->
+                    if (value.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.offline_search_placeholder),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    inner()
+                }
+            )
+            if (value.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                CompactIconButton(
+                    icon = TablerIcons.X,
+                    contentDescription = stringResource(R.string.offline_desc_clear_search),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { onValueChange("") },
+                    boxSize = 28.dp,
+                    iconSize = 15.dp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeekBar(
+    positionMs: Int,
+    durationMs: Int,
+    scrubbing: Boolean,
+    onScrub: (Int) -> Unit,
+    onScrubFinished: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val total = durationMs.coerceAtLeast(1)
+    val fraction = positionMs.coerceIn(0, total).toFloat() / total.toFloat()
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val progressColor = MaterialTheme.colorScheme.primary
+    var widthPx by remember { mutableIntStateOf(0) }
+    var dragging by remember { mutableStateOf(false) }
+
+    fun msAt(x: Float): Int =
+        if (widthPx <= 0) 0 else ((x / widthPx) * total).toInt().coerceIn(0, total)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(22.dp)
+            .onSizeChanged { widthPx = it.width }
+            .pointerInput(total, widthPx) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        dragging = true
+                        onScrub(msAt(offset.x))
+                    },
+                    onDragEnd = {
+                        dragging = false
+                        onScrubFinished()
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        onScrubFinished()
+                    }
+                ) { change, _ ->
+                    change.consume()
+                    onScrub(msAt(change.position.x))
+                }
+            }
+            .pointerInput(total, widthPx) {
+                detectTapGestures { offset ->
+                    onScrub(msAt(offset.x))
+                    onScrubFinished()
+                }
+            }
+            .drawBehind {
+                val centerY = size.height / 2f
+                val trackHeight = 3.dp.toPx()
+                val radius = trackHeight / 2f
+                val progressWidth = size.width * fraction.coerceIn(0f, 1f)
+                drawRoundRect(
+                    color = trackColor,
+                    topLeft = Offset(0f, centerY - radius),
+                    size = Size(size.width, trackHeight),
+                    cornerRadius = CornerRadius(radius, radius)
+                )
+                drawRoundRect(
+                    color = progressColor,
+                    topLeft = Offset(0f, centerY - radius),
+                    size = Size(progressWidth, trackHeight),
+                    cornerRadius = CornerRadius(radius, radius)
+                )
+                val thumbRadius = (if (dragging || scrubbing) 6.dp else 4.dp).toPx()
+                drawCircle(
+                    color = progressColor,
+                    radius = thumbRadius,
+                    center = Offset(
+                        x = progressWidth.coerceIn(thumbRadius, size.width - thumbRadius),
+                        y = centerY
+                    )
+                )
+            }
+    )
+}
+
+@Composable
 private fun OfflineSongRow(
     song: OfflineSong,
     isCurrent: Boolean,
@@ -755,64 +995,45 @@ private fun OfflineSongRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .padding(horizontal = 6.dp, vertical = 5.dp)
     ) {
-        SongCover(song = song, size = 52.dp, corner = 10.dp)
-        Spacer(Modifier.width(12.dp))
+        SongCover(song = song, size = 44.dp, corner = 8.dp)
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                 color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            val unknownArtist = stringResource(R.string.offline_unknown_artist)
+            val explicitLabel = stringResource(R.string.offline_label_explicit)
             val subtitle = buildString {
-                append(song.artist.ifBlank { "Unknown artist" })
-                song.album.ifBlank { "" }.takeIf { it.isNotBlank() }?.let {
-                    append(" • $it")
-                }
+                append(song.artist.ifBlank { unknownArtist })
+                song.album.ifBlank { "" }.takeIf { it.isNotBlank() }?.let { append(" • $it") }
+                song.durationSec?.takeIf { it > 0 }?.let { append(" • ${formatSeconds(it)}") }
+                if (song.explicit) append(" • $explicitLabel")
             }
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val metaLine = buildString {
-                if (song.explicit) append("Explicit")
-                song.durationSec?.let {
-                    if (it > 0) {
-                        if (isNotEmpty()) append(" • ")
-                        append(formatSeconds(it))
-                    }
-                }
-                song.videoId?.let {
-                    if (isNotEmpty()) append(" • ")
-                    append("YouTube")
-                }
-            }
-            if (metaLine.isNotEmpty()) {
-                Text(
-                    text = metaLine,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
-        IconButton(onClick = onDelete) {
-            Icon(
-                imageVector = Icons.Outlined.Delete,
-                contentDescription = "Delete",
-                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-            )
-        }
+        CompactIconButton(
+            icon = TablerIcons.Trash,
+            contentDescription = stringResource(R.string.offline_desc_delete),
+            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+            onClick = onDelete,
+            boxSize = 30.dp,
+            iconSize = 17.dp
+        )
     }
 }
 
@@ -842,7 +1063,7 @@ private fun SongCover(song: OfflineSong, size: Dp, corner: Dp) {
             )
         } else {
             Icon(
-                imageVector = Icons.Default.MusicNote,
+                imageVector = TablerIcons.Music,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(size / 2)
@@ -886,21 +1107,25 @@ private fun NowPlayingBar(
     onScrubFinished: () -> Unit,
     onTogglePlay: () -> Unit,
     onPrev: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onClose: () -> Unit
 ) {
+    val scrubbing = scrubMs >= 0
+    val shownPosition = if (scrubbing) scrubMs else positionMs
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(20.dp),
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
         tonalElevation = 4.dp,
-        shadowElevation = 8.dp
+        shadowElevation = 6.dp
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SongCover(song = song, size = 44.dp, corner = 10.dp)
-                Spacer(Modifier.width(12.dp))
+                SongCover(song = song, size = 40.dp, corner = 8.dp)
+                Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = song.title,
@@ -910,54 +1135,55 @@ private fun NowPlayingBar(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = song.artist.ifBlank { "Unknown artist" },
-                        style = MaterialTheme.typography.bodySmall,
+                        text = song.artist.ifBlank { stringResource(R.string.offline_unknown_artist) },
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = onPrev) {
-                    Icon(
-                        imageVector = Icons.Default.SkipPrevious,
-                        contentDescription = "Previous",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                IconButton(onClick = onTogglePlay) {
-                    Icon(
-                        imageVector = if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (playing) "Pause" else "Play",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                IconButton(onClick = onNext) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Next",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Slider(
-                value = (if (scrubMs >= 0) scrubMs else positionMs)
-                    .toFloat()
-                    .coerceIn(0f, durationMs.toFloat().coerceAtLeast(1f)),
-                onValueChange = { onScrub(it.toInt()) },
-                onValueChangeFinished = onScrubFinished,
-                valueRange = 0f..durationMs.toFloat().coerceAtLeast(1f),
-                modifier = Modifier.fillMaxWidth(),
-                colors = SliderDefaults.colors(
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                    thumbColor = MaterialTheme.colorScheme.primary
+                CompactIconButton(
+                    icon = TablerIcons.PlayerSkipBack,
+                    contentDescription = stringResource(R.string.offline_desc_previous),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = onPrev,
+                    iconSize = 17.dp
                 )
+                CompactIconButton(
+                    icon = if (playing) TablerIcons.PlayerPause else TablerIcons.PlayerPlay,
+                    contentDescription = if (playing) stringResource(R.string.offline_desc_pause) else stringResource(R.string.offline_desc_play),
+                    tint = MaterialTheme.colorScheme.primary,
+                    onClick = onTogglePlay,
+                    boxSize = 36.dp,
+                    iconSize = 22.dp
+                )
+                CompactIconButton(
+                    icon = TablerIcons.PlayerSkipForward,
+                    contentDescription = stringResource(R.string.offline_desc_next),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = onNext,
+                    iconSize = 17.dp
+                )
+                CompactIconButton(
+                    icon = TablerIcons.X,
+                    contentDescription = stringResource(R.string.offline_desc_close_player),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = onClose,
+                    iconSize = 16.dp
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            SeekBar(
+                positionMs = shownPosition,
+                durationMs = durationMs,
+                scrubbing = scrubbing,
+                onScrub = onScrub,
+                onScrubFinished = onScrubFinished,
+                modifier = Modifier.padding(end = 4.dp)
             )
-            Row {
+            Row(modifier = Modifier.padding(end = 4.dp)) {
                 Text(
-                    text = formatTime(if (scrubMs >= 0) scrubMs else positionMs),
+                    text = formatTime(shownPosition),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

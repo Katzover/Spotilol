@@ -5,7 +5,7 @@ import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMuxer
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 import java.nio.ByteBuffer
 
@@ -43,7 +43,7 @@ object M4aEncoder {
                 }
             }
             val inFormat = srcFormat ?: run {
-                Log.w(TAG, "m4aTranscode: no audio track in ${input.name}")
+                Logger.w(TAG, "m4aTranscode: no audio track in ${input.name}")
                 return false
             }
 
@@ -81,7 +81,7 @@ object M4aEncoder {
 
             while (!sawOutputEOS) {
                 if (shouldAbort?.invoke() == true) {
-                    Log.i(TAG, "m4aTranscode: aborted")
+                    Logger.i(TAG, "m4aTranscode: aborted")
                     return false
                 }
                 var didWork = false
@@ -183,7 +183,7 @@ object M4aEncoder {
             muxerStopped = true
             return output.length() > 0
         } catch (e: Exception) {
-            Log.e(TAG, "m4aTranscode: failed: ${e.message}", e)
+            Logger.e(TAG, "m4aTranscode: failed: ${e.message}", e)
             runCatching { output.delete() }
             return false
         } finally {

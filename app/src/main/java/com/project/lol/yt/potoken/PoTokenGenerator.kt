@@ -8,7 +8,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import android.util.Log
+import com.project.lol.util.Logger
 
 class PoTokenGenerator {
     private val TAG = "PoTokenGenerator"
@@ -39,15 +39,15 @@ class PoTokenGenerator {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "poToken generation exception: ${e.javaClass.simpleName}: ${e.message}", e)
+            Logger.e(TAG, "poToken generation exception: ${e.javaClass.simpleName}: ${e.message}", e)
             when (e) {
                 is BadWebViewException -> {
-                    Log.e(TAG, "Could not obtain poToken because WebView is broken", e)
+                    Logger.e(TAG, "Could not obtain poToken because WebView is broken", e)
                     webViewBadImpl = true
                     null
                 }
                 is kotlinx.coroutines.TimeoutCancellationException -> {
-                    Log.w(TAG, "PoToken generation timed out for videoId=$videoId")
+                    Logger.w(TAG, "PoToken generation timed out for videoId=$videoId")
                     null
                 }
                 else -> throw e // includes PoTokenException
@@ -96,7 +96,7 @@ class PoTokenGenerator {
                 // retry, this time recreating the [webPoTokenGenerator] from scratch;
                 // this might happen for example if the app goes in the background and the WebView
                 // content is lost
-                Log.e(TAG, "Failed to obtain poToken, retrying", throwable)
+                Logger.e(TAG, "Failed to obtain poToken, retrying", throwable)
                 return getWebClientPoToken(videoId = videoId, sessionId = sessionId, forceRecreate = true)
             }
         }

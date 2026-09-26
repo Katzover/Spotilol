@@ -30,7 +30,9 @@ object PlayerCore {
             },250);
             if(typeof window.__splPbVal==='undefined') window.__splPbVal=null;
             window.splPbNode=function(){
-                var n=document.querySelector('button[data-testid=control-button-playpause]');
+                var n=document.querySelector('aside button[data-testid=control-button-playpause]');
+                if(n) return n;
+                n=document.querySelector('button[data-testid=control-button-playpause]');
                 if(n) return n;
                 if(window.pBtn) return window.pBtn;
                 return null;

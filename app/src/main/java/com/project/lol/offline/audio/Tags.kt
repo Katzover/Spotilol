@@ -1,7 +1,7 @@
 package com.project.lol.offline.audio
 
 import android.graphics.BitmapFactory
-import android.util.Log
+import com.project.lol.util.Logger
 import com.project.lol.offline.DownloadFormat
 import java.io.File
 
@@ -22,7 +22,7 @@ object Tags {
                 DownloadFormat.MP3 -> writeMp3Tags(file, title, artist, album, coverFile)
             }
         }.onFailure {
-            Log.w(TAG, "writeTags: failed for ${file.name}: ${it.message}")
+            Logger.w(TAG, "writeTags: failed for ${file.name}: ${it.message}")
         }
     }
 
@@ -35,7 +35,7 @@ object Tags {
     ) {
         val cover = readCoverBytes(coverFile)
         if (Mp4Tags.writeTags(file, title, artist, album, cover)) return
-        Log.w(TAG, "writeMp4Tags: tag write failed for ${file.name}")
+        Logger.w(TAG, "writeMp4Tags: tag write failed for ${file.name}")
     }
 
     private fun writeMp3Tags(
@@ -46,7 +46,7 @@ object Tags {
         coverFile: File?
     ) {
         if (Id3Tags.writeTags(file, title, artist, album, readCoverBytes(coverFile))) return
-        Log.w(TAG, "writeMp3Tags: tag write failed for ${file.name}")
+        Logger.w(TAG, "writeMp3Tags: tag write failed for ${file.name}")
     }
 
     private fun readCoverBytes(coverFile: File?): ByteArray? {

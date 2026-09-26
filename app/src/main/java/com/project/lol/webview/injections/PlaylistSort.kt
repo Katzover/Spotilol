@@ -26,6 +26,7 @@ object PlaylistSort {
             if (window.splPlaylistSort) return;
 
             var LS_KEY = 'spotilol_playlist_sort';
+            var RELOAD_KEY = 'spotilol_sort_reload';
             var MAX_LIMIT = 1000;
             var TTL = 30000;
             var STYLE_ID = 'spotilol-sort-style';
@@ -38,6 +39,7 @@ object PlaylistSort {
             if (state && (!state.field || (state.order !== 'ASC' && state.order !== 'DESC'))) state = null;
 
             var held = {};
+            var sortedHits = {};
             var qcCache = null;
             var menuTimer = null;
             var menuObserver = null;
@@ -46,6 +48,7 @@ object PlaylistSort {
             var SORT_FIELDS = [
                 ['TITLE_AND_ARTIST', '', 'Title'],
                 ['ALBUM', 'ALBUM', 'Album'],
+                ['ADDED_AT', 'ADDED_AT', 'Date added'],
                 ['RELEASE_DATE', 'RELEASE_DATE', 'Release date'],
                 ['DURATION', 'DURATION', 'Duration']
             ];
@@ -54,8 +57,12 @@ object PlaylistSort {
             function sortKey(){ return state ? state.field + ':' + state.order : ''; }
             function currentUri(){
                 var m = location.pathname.match(/^\/playlist\/([A-Za-z0-9]+)/);
-                return m ? 'spotify:playlist:' + m[1] : null;
+                if (m) return 'spotify:playlist:' + m[1];
+                m = location.pathname.match(/^\/album\/([A-Za-z0-9]+)/);
+                if (m) return 'spotify:album:' + m[1];
+                return null;
             }
+            function albumPage(){ return /^\/album\//.test(location.pathname); }
             function save(){
                 try {
                     if (state) localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -65,6 +72,15 @@ object PlaylistSort {
 
             // what we sort by, straight from the pathfinder items
             function valueOf(item, field){
+                if (albumPage()) {
+                    var t = item && item.track;
+                    if (!t) return null;
+                    switch (field) {
+                        case 'TITLE_AND_ARTIST': return t.name || null;
+                        case 'DURATION': return (t.duration && t.duration.totalMilliseconds) || 0;
+                    }
+                    return null;
+                }
                 var d = item && item.itemV2 ? item.itemV2.data : null;
                 if (!d) return null;
                 switch (field) {
@@ -96,19 +112,34 @@ object PlaylistSort {
             }
             // helpers to read and rebuild the response
             function readItems(j){
-                try { return j.data.playlistV2.content.items || null; } catch(e){ return null; }
+                try { return j.data.playlistV2.content.items || null; } catch(e){}
+                try { return j.data.albumUnion.tracksV2.items || null; } catch(e){}
+                return null;
             }
             function readTotal(j, fallback){
                 try {
                     var t = j.data.playlistV2.content.totalCount;
-                    return (typeof t === 'number') ? t : fallback;
-                } catch(e){ return fallback; }
+                    if (typeof t === 'number') return t;
+                } catch(e){}
+                try {
+                    var a = j.data.albumUnion.tracksV2.totalCount;
+                    if (typeof a === 'number') return a;
+                } catch(e){}
+                return fallback;
             }
             function rebuild(j, items){
-                var content = Object.assign({}, j.data.playlistV2.content, { items: items });
-                var pv2 = Object.assign({}, j.data.playlistV2, { content: content });
-                var data = Object.assign({}, j.data, { playlistV2: pv2 });
-                var out = Object.assign({}, j, { data: data });
+                var out = j;
+                try {
+                    if (j.data.playlistV2) {
+                        var content = Object.assign({}, j.data.playlistV2.content, { items: items });
+                        var pv2 = Object.assign({}, j.data.playlistV2, { content: content });
+                        out = Object.assign({}, j, { data: Object.assign({}, j.data, { playlistV2: pv2 }) });
+                    } else if (j.data.albumUnion) {
+                        var tv2 = Object.assign({}, j.data.albumUnion.tracksV2, { items: items });
+                        var au = Object.assign({}, j.data.albumUnion, { tracksV2: tv2 });
+                        out = Object.assign({}, j, { data: Object.assign({}, j.data, { albumUnion: au }) });
+                    }
+                } catch(e){}
                 var headers = null;
                 try {
                     headers = new Headers();
@@ -154,12 +185,17 @@ object PlaylistSort {
             function apply(){
                 var uri = currentUri();
                 if (!uri) return false;
+                // an album resolves its rows by index and drops back to album order on any
+                // update, so refetching here would undo the sort. its order comes with the
+                // payload at mount instead
+                if (albumPage()) return false;
                 // a playlist we already fed sorted rows has to be refetched even when the
                 // sort just got turned off, otherwise the list keeps the order from the
                 // cache and it looks sorted while the menu says the sort is off
                 var wasSorted = !!held[uri] || !!state;
                 held[uri] = null;
                 if (!enabled() || !wasSorted) return false;
+                if (state && !fieldSupported(state.field)) return false;
                 var qc = findQueryClient();
                 if (!qc || typeof qc.getQueryCache !== 'function') return false;
                 var all = [];
@@ -291,6 +327,16 @@ object PlaylistSort {
                 }
                 return null;
             }
+            // date added is only real on the playlists that carry it. editorial ones
+            // ship a dummy 1970 stamp and hide the column, so the row would sort nothing
+            function fieldSupported(field){
+                // an album has no date added, and album/release date are the same for every row
+                if (albumPage()) return field === 'TITLE_AND_ARTIST' || field === 'DURATION';
+                if (field !== 'ADDED_AT') return true;
+                var ul = columnsMenu();
+                if (ul && ul.querySelector('button[role="menuitemcheckbox"][data-column="' + field + '"]')) return true;
+                return !!headerLabel(field);
+            }
             function dropMenuRows(ul){
                 var old = ul.querySelectorAll('[data-spl-opt]');
                 for (var i = 0; i < old.length; i++) {
@@ -319,6 +365,7 @@ object PlaylistSort {
                     }
                     for (var i = 0; i < SORT_FIELDS.length; i++) {
                         var field = SORT_FIELDS[i][0];
+                        if (!fieldSupported(field)) continue;
                         var label = columnLabel(ul, SORT_FIELDS[i][1], headerLabel(field) || SORT_FIELDS[i][2]);
                         var active = (state && state.field === field) ? state.order : '';
                         var li = row.cloneNode(true);
@@ -365,19 +412,32 @@ object PlaylistSort {
                 } catch(e){}
             }
 
+            function albumReload(){
+                var key = sortKey() || 'off';
+                var n = 0;
+                try { n = parseInt(sessionStorage.getItem(RELOAD_KEY + ':' + key) || '0', 10) || 0; } catch(e){}
+                if (n >= 2) return;
+                try { sessionStorage.setItem(RELOAD_KEY + ':' + key, String(n + 1)); } catch(e){}
+                setTimeout(function(){ try { location.reload(); } catch(e){} }, 200);
+            }
+            function afterSortChange(){
+                decorate();
+                if (!albumPage()) { apply(); return; }
+                // an album reads its rows once at mount, so a new order only lands on a fresh
+                // load. the counter caps it per chosen sort so it cannot reload in a loop
+                albumReload();
+            }
             // public api
             function setSort(field, order){
                 if (!field) { clearSort(); return; }
                 state = { field: field, order: order === 'DESC' ? 'DESC' : 'ASC' };
                 save();
-                decorate();
-                apply();
+                afterSortChange();
             }
             function clearSort(){
                 state = null;
                 save();
-                decorate();
-                apply();
+                afterSortChange();
             }
             function toggleField(field){
                 if (!field) return;
@@ -386,8 +446,7 @@ object PlaylistSort {
                 setSort(field, 'ASC');
             }
             function refresh(){
-                decorate();
-                apply();
+                afterSortChange();
             }
 
             window.splPlaylistSort = {
@@ -403,19 +462,22 @@ object PlaylistSort {
             window.fetch = function(input, init){
                 try {
                     var url = typeof input === 'string' ? input : (input && input.url) || '';
-                    if (!enabled() || !state || url.indexOf('api-partner.spotify.com/pathfinder') === -1
+                    if (!enabled() || !state || !fieldSupported(state.field)
+                        || url.indexOf('api-partner.spotify.com/pathfinder') === -1
                         || !init || !init.body) {
                         return prevFetch(input, init);
                     }
                     var body = init.body;
                     var parsed = typeof body === 'string' ? JSON.parse(body) : body;
-                    if (!parsed || (parsed.operationName !== 'fetchPlaylistContents'
-                        && parsed.operationName !== 'fetchPlaylist')) {
+                    var op = parsed && parsed.operationName;
+                    var playlistOp = (op === 'fetchPlaylistContents' || op === 'fetchPlaylist');
+                    if (!parsed || (op !== 'getAlbum' && !playlistOp)) {
                         return prevFetch(input, init);
                     }
                     var vars = parsed.variables || {};
                     var uri = vars.uri;
-                    if (!uri || String(uri).indexOf('spotify:playlist:') !== 0) return prevFetch(input, init);
+                    var want = playlistOp ? 'spotify:playlist:' : 'spotify:album:';
+                    if (!uri || String(uri).indexOf(want) !== 0) return prevFetch(input, init);
 
                     var offset = vars.offset | 0;
                     var limit = (vars.limit | 0) || 50;
@@ -446,6 +508,7 @@ object PlaylistSort {
                                     key: key,
                                     ts: Date.now()
                                 };
+                                if (albumPage()) sortedHits[uri + '|' + key] = 1;
                                 return rebuild(j, sorted.slice(offset, offset + limit));
                             }).catch(function(){ return resp; });
                         });
@@ -486,7 +549,18 @@ object PlaylistSort {
             setInterval(decorate, 1000);
             // apply once the player has mounted so a saved choice survives reloads and
             // also covers playlists served straight from the query cache
-            if (state) setTimeout(apply, 1500);
+            if (state) {
+                if (albumPage()) {
+                    // a load where the app asked for the album before this script was in place
+                    // leaves the rows in album order with no refetch to fix it, so heal once
+                    setTimeout(function(){
+                        if (sortedHits[currentUri() + '|' + sortKey()]) return;
+                        albumReload();
+                    }, 2500);
+                } else {
+                    setTimeout(apply, 1500);
+                }
+            }
         })();
     """
 }

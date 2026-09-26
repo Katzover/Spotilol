@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.webkit.CookieManager
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.project.lol.util.Logger
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -18,6 +19,7 @@ object ProfileManager {
 
     private const val PREFS = "spotilol_profiles"
     private const val KEY_PROFILES = "profiles"
+    private const val TAG = "profiles"
 
     private val COOKIE_DOMAINS = listOf(
         "https://open.spotify.com",
@@ -82,10 +84,13 @@ object ProfileManager {
         list.removeAll { it.name == trimmed }
         list.add(0, Profile(trimmed, cookies, System.currentTimeMillis()))
         writeProfiles(context, list)
+        Logger.i(TAG, "profile saved: $trimmed (${cookies.length} chars, total=${list.size})")
     }
 
     fun deleteProfile(context: Context, name: String) {
-        writeProfiles(context, getProfiles(context).filterNot { it.name == name })
+        val remaining = getProfiles(context).filterNot { it.name == name }
+        writeProfiles(context, remaining)
+        Logger.i(TAG, "profile deleted: $name (remaining=${remaining.size})")
     }
 
     private fun writeProfiles(context: Context, profiles: List<Profile>) {
@@ -111,7 +116,11 @@ object ProfileManager {
                 if (cookies.contains("sp_dc=")) hasSpDc = true
             }
         }
-        if (!hasSpDc) return null
+        if (!hasSpDc) {
+            Logger.w(TAG, "capture session: no sp_dc cookie, domains=${map.length()}")
+            return null
+        }
+        Logger.i(TAG, "captured session from ${map.length()} domains")
         return map.toString()
     }
 
@@ -130,6 +139,7 @@ object ProfileManager {
         }
         if (entries.isEmpty()) return false
 
+        Logger.i(TAG, "applying session over ${entries.size} domains")
         CookieManager.getInstance().removeAllCookies {
             for ((domain, cookies) in entries) {
                 for (pair in cookies.split(";")) {

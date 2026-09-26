@@ -6,7 +6,7 @@ import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
+import com.project.lol.util.Logger
 import com.project.lol.innertube.YouTube
 import com.project.lol.innertube.models.SongItem
 import com.project.lol.offline.audio.M4aEncoder
@@ -125,21 +125,65 @@ object DownloadManager {
     var lastLabel: String = ""
 
     @Volatile
+    var status: DownloadStatus = DownloadStatus()
+        private set
+
+    @Volatile
     private var lastProgressAt = 0L
 
     private val pendingJobs = java.util.concurrent.atomic.AtomicInteger(0)
 
     fun isWorkPending(): Boolean = pendingJobs.get() > 0
 
-    private fun progress(pct: Int, label: String) {
+    fun queuedCount(): Int = pendingJobs.get()
+
+    private fun markStatus(
+        active: Boolean = status.active,
+        batch: Boolean = status.batch,
+        collection: String = status.collection,
+        title: String = status.title,
+        artist: String = status.artist,
+        stage: String = status.stage,
+        index: Int = status.index,
+        total: Int = status.total,
+        saved: Int = status.saved,
+        failed: Int = status.failed,
+        skipped: Int = status.skipped,
+        error: Boolean = status.error,
+    ) {
+        status = status.copy(
+            active = active,
+            batch = batch,
+            collection = collection,
+            title = title,
+            artist = artist,
+            stage = stage,
+            index = index,
+            total = total,
+            saved = saved,
+            failed = failed,
+            skipped = skipped,
+            error = error,
+        )
+    }
+
+    private fun progress(pct: Int, label: String, stage: String? = null) {
+        val nextStage = stage ?: label
         val now = System.currentTimeMillis()
         val terminal = pct <= 0 || pct >= 100
-        if (!terminal && now - lastProgressAt < PROGRESS_MIN_INTERVAL_MS) return
+        val staged = nextStage != status.stage
+        if (!terminal && !staged && now - lastProgressAt < PROGRESS_MIN_INTERVAL_MS) return
         lastProgressAt = now
         lastPct = pct
         lastLabel = label
+        status = status.copy(
+            percent = pct.coerceIn(0, 100),
+            stage = nextStage,
+            error = pct < 0,
+        )
         onProgress?.invoke(pct, label)
         onProgress2?.invoke(pct, label)
+        if (terminal || staged) Logger.d(TAG, "download $pct% $label")
     }
 
     private enum class ControlSignal { SKIP, CANCEL }
@@ -149,7 +193,7 @@ object DownloadManager {
 
     fun skipCurrent() {
         signal = ControlSignal.SKIP
-        Log.i(TAG, "skipCurrent: skip requested (active=${activeTrackId ?: "none"})")
+        Logger.i(TAG, "skipCurrent: skip requested (active=${activeTrackId ?: "none"})")
     }
 
     fun cancelAll() {
@@ -159,7 +203,7 @@ object DownloadManager {
             pendingJobs.decrementAndGet()
             dropped++
         }
-        Log.i(TAG, "cancelAll: cancel requested, dropped $dropped queued job(s)")
+        Logger.i(TAG, "cancelAll: cancel requested, dropped $dropped queued job(s)")
     }
 
     private fun consumeSignal(): ControlSignal? {
@@ -185,12 +229,12 @@ object DownloadManager {
         }
         val trackId = parsed.optString("trackId").trim()
         if (trackId.isBlank()) {
-            Log.e(TAG, "downloadCurrentTrack: empty trackId in payload")
+            Logger.e(TAG, "downloadCurrentTrack: empty trackId in payload")
             onStatus?.invoke("Could not identify the current track")
             return
         }
         if (trackId == activeTrackId) {
-            Log.w(TAG, "downloadCurrentTrack: $trackId is already in progress")
+            Logger.w(TAG, "downloadCurrentTrack: $trackId is already in progress")
             onStatus?.invoke("This track is already downloading")
             return
         }
@@ -201,7 +245,20 @@ object DownloadManager {
             album = parsed.optString("album"),
             cover = parsed.optString("cover").ifBlank { null },
         )
-        onProgress?.invoke(0, "Resolving audio...")
+        markStatus(
+            active = true,
+            batch = false,
+            collection = "",
+            title = track.title.ifBlank { track.trackId },
+            artist = track.artist,
+            index = 0,
+            total = 1,
+            saved = 0,
+            failed = 0,
+            skipped = 0,
+            error = false,
+        )
+        progress(0, "Resolving audio...")
         enqueue(appContext, DownloadJob.Single(track))
     }
 
@@ -243,8 +300,21 @@ object DownloadManager {
         val batch = if (collectionCover != null) {
             tracks.map { if (it.cover == null) it.copy(cover = collectionCover) else it }
         } else tracks
-        Log.i(TAG, "downloadCollection: '$name' type=${parsed.optString("type")} tracks=${batch.size}")
-        onProgress?.invoke(0, "Queued ${batch.size} tracks — $name")
+        Logger.i(TAG, "downloadCollection: '$name' type=${parsed.optString("type")} tracks=${batch.size}")
+        markStatus(
+            active = true,
+            batch = true,
+            collection = name,
+            title = "",
+            artist = "",
+            index = 0,
+            total = batch.size,
+            saved = 0,
+            failed = 0,
+            skipped = 0,
+            error = false,
+        )
+        progress(0, "Queued ${batch.size} tracks — $name", "Queued")
         enqueue(appContext, DownloadJob.Collection(name, collectionCover, batch))
     }
 
@@ -268,26 +338,41 @@ object DownloadManager {
                     is DownloadJob.Single -> runSingle(appContext, job.track)
                     is DownloadJob.Collection -> runCollection(appContext, job)
                 }
-            }.onFailure { Log.e(TAG, "consumeLoop: job failed: ${it.message}", it) }
+            }.onFailure { Logger.e(TAG, "consumeLoop: job failed: ${it.message}", it) }
         }
     }
 
     private suspend fun runSingle(appContext: Context, track: TrackMeta) {
+        val trackName = track.title.ifBlank { track.trackId }
         if (OfflineStore.isTrackSaved(appContext, track.trackId)) {
-            onProgress?.invoke(100, "Already saved")
+            markStatus(active = false, title = trackName, artist = track.artist, stage = "Already saved", error = false)
+            progress(100, "Already saved")
             withContext(Dispatchers.Main) { onStatus?.invoke("Already saved to ${DownloadPrefs.folderLabel(appContext)}") }
             return
         }
         activeTrackId = track.trackId
+        markStatus(
+            active = true,
+            batch = false,
+            title = trackName,
+            artist = track.artist,
+            stage = "Resolving audio",
+            index = 0,
+            total = 1,
+            saved = 0,
+            failed = 0,
+            skipped = 0,
+            error = false,
+        )
         try {
             val result = runCatching {
-                downloadToFile(appContext, track) { pct, label -> onProgress?.invoke(pct, label) }
-            }.onFailure { Log.e(TAG, "runSingle: exception: ${it.message}", it) }
+                downloadToFile(appContext, track) { pct, text -> progress(pct, text) }
+            }.onFailure { Logger.e(TAG, "runSingle: exception: ${it.message}", it) }
                 .getOrElse {
                     if (signal != null) TrackResult.Aborted
                     else TrackResult.Failed(track.title, track.artist, track.album)
                 }
-            Log.i(TAG, "runSingle: finished id=${track.trackId} result=${result::class.simpleName}")
+            Logger.i(TAG, "runSingle: finished id=${track.trackId} result=${result::class.simpleName}")
             when (result) {
                 is TrackResult.Saved -> {
                     OfflineStore.saveMetadata(
@@ -306,23 +391,24 @@ object DownloadManager {
                         explicit = result.yt?.explicit ?: false,
                         shareLink = result.yt?.shareLink,
                     )
-                    onProgress?.invoke(100, "Saved to ${DownloadPrefs.folderLabel(appContext)}")
+                    progress(100, "Saved to ${DownloadPrefs.folderLabel(appContext)}")
                     withContext(Dispatchers.Main) { onStatus?.invoke("Saved to ${DownloadPrefs.folderLabel(appContext)}") }
                 }
                 is TrackResult.Failed -> {
                     val msg = "Download failed: ${lastDownloadError ?: "unknown error"}"
-                    onProgress?.invoke(-1, msg)
+                    progress(-1, msg)
                     withContext(Dispatchers.Main) { onStatus?.invoke(msg) }
                 }
                 // Single track: skip and cancel both simply stop the download.
                 TrackResult.Aborted -> {
                     consumeSignal()
-                    onProgress?.invoke(-1, "Cancelled")
+                    progress(-1, "Cancelled")
                     withContext(Dispatchers.Main) { onStatus?.invoke("Download cancelled") }
                 }
             }
         } finally {
             activeTrackId = null
+            markStatus(active = false)
         }
     }
 
@@ -333,7 +419,21 @@ object DownloadManager {
         var skipped = 0
         var cancelled = false
         batchActive = true
-        Log.i(TAG, "runCollection: start '${job.name}' total=$total")
+        markStatus(
+            active = true,
+            batch = true,
+            collection = job.name,
+            title = "",
+            artist = "",
+            stage = "Reading playlist",
+            index = 0,
+            total = total,
+            saved = 0,
+            failed = 0,
+            skipped = 0,
+            error = false,
+        )
+        Logger.i(TAG, "runCollection: start '${job.name}' total=$total")
 
         try {
             for ((index, track) in job.tracks.withIndex()) {
@@ -347,8 +447,18 @@ object DownloadManager {
                 }
 
                 fun report(pct: Int, text: String) {
-                    onProgress?.invoke(overallPct(pct), "$n/$total · $shortTitle — $text")
+                    progress(overallPct(pct), "$n/$total · $shortTitle — $text", text)
                 }
+
+                markStatus(
+                    active = true,
+                    index = n,
+                    title = shortTitle,
+                    artist = track.artist,
+                    saved = saved,
+                    failed = failed,
+                    skipped = skipped,
+                )
 
                 // Skip/cancel tapped between tracks (e.g. during the
                 // inter-track delay): consume it before starting this one.
@@ -359,7 +469,7 @@ object DownloadManager {
                     }
                     ControlSignal.SKIP -> {
                         skipped++
-                        Log.i(TAG, "runCollection: user skipped ${track.trackId}")
+                        Logger.i(TAG, "runCollection: user skipped ${track.trackId}")
                         report(100, "Skipped")
                         continue
                     }
@@ -379,7 +489,7 @@ object DownloadManager {
                 try {
                     val result = runCatching {
                         downloadToFile(appContext, track) { pct, text -> report(pct, text) }
-                    }.onFailure { Log.e(TAG, "runCollection: ${track.trackId} exception: ${it.message}", it) }
+                    }.onFailure { Logger.e(TAG, "runCollection: ${track.trackId} exception: ${it.message}", it) }
                         .getOrElse {
                             if (signal != null) TrackResult.Aborted
                             else TrackResult.Failed(track.title, track.artist, track.album)
@@ -408,7 +518,7 @@ object DownloadManager {
                         }
                         is TrackResult.Failed -> {
                             failed++
-                            Log.w(TAG, "runCollection: ${track.trackId} failed: $lastDownloadError")
+                            Logger.w(TAG, "runCollection: ${track.trackId} failed: $lastDownloadError")
                             report(0, "Failed — skipping")
                         }
                         TrackResult.Aborted -> when (consumeSignal()) {
@@ -431,6 +541,7 @@ object DownloadManager {
             }
         } finally {
             batchActive = false
+            markStatus(active = false)
         }
 
         val processed = saved + failed + skipped
@@ -441,12 +552,22 @@ object DownloadManager {
             if (failed > 0) append(", $failed failed")
             if (cancelled) append(" — cancelled at $processed/$total")
         }
-        Log.i(TAG, "runCollection: done '${job.name}' saved=$saved failed=$failed skipped=$skipped cancelled=$cancelled")
+        Logger.i(TAG, "runCollection: done '${job.name}' saved=$saved failed=$failed skipped=$skipped cancelled=$cancelled")
+        markStatus(
+            batch = false,
+            index = processed,
+            title = "",
+            artist = "",
+            saved = saved,
+            failed = failed,
+            skipped = skipped,
+            stage = summary,
+        )
         withContext(Dispatchers.Main) { onStatus?.invoke(summary) }
         when {
-            cancelled -> onProgress?.invoke(-1, summary)
-            saved > 0 -> onProgress?.invoke(100, "$summary — ${DownloadPrefs.folderLabel(appContext)}")
-            failed > 0 -> onProgress?.invoke(-1, summary)
+            cancelled -> progress(-1, summary)
+            saved > 0 -> progress(100, "$summary — ${DownloadPrefs.folderLabel(appContext)}")
+            failed > 0 -> progress(-1, summary)
         }
     }
 
@@ -467,7 +588,7 @@ object DownloadManager {
             context, trackId, title, artist, album,
             preferredMimeType = if (format == DownloadFormat.M4A) "audio/mp4" else null,
         ) ?: run {
-            Log.w(TAG, "downloadToFile: no stream source for $trackId")
+            Logger.w(TAG, "downloadToFile: no stream source for $trackId")
             lastDownloadError = "Download source not available yet"
             return TrackResult.Failed(title, artist, album)
         }
@@ -491,7 +612,7 @@ object DownloadManager {
             { signal != null },
         )
         if (!downloaded) {
-            Log.e(TAG, "downloadToFile: audio download failed: $lastDownloadError")
+            Logger.e(TAG, "downloadToFile: audio download failed: $lastDownloadError")
             runCatching { tmpFile.delete() }
             if (signal != null) return TrackResult.Aborted
             return TrackResult.Failed(effectiveTitle, effectiveArtist, effectiveAlbum)
@@ -502,7 +623,7 @@ object DownloadManager {
 
         val sourceContainer = resolved.container
         val sourceMime = resolved.mimeType
-        Log.i(TAG, "downloadToFile: source container=$sourceContainer mime=$sourceMime trackId=$trackId")
+        Logger.i(TAG, "downloadToFile: source container=$sourceContainer mime=$sourceMime trackId=$trackId")
 
         fun renameToAudio(source: File, ext: String): File {
             val target = File(dir, "$trackId.$ext")
@@ -529,7 +650,7 @@ object DownloadManager {
                 source.delete()
                 FinalAudio(out, DownloadFormat.M4A.ext, DownloadFormat.M4A.mime)
             } else {
-                Log.w(TAG, "downloadToFile: m4a remux failed, keeping original")
+                Logger.w(TAG, "downloadToFile: m4a remux failed, keeping original")
                 FinalAudio(renameToAudio(source, "m4a"), "m4a", DownloadFormat.M4A.mime)
             }
         }
@@ -549,7 +670,7 @@ object DownloadManager {
                     tmpFile.delete()
                     FinalAudio(mp3File, DownloadFormat.MP3.ext, DownloadFormat.MP3.mime)
                 } else {
-                    Log.w(TAG, "downloadToFile: mp3 transcode failed, falling back to $sourceContainer output")
+                    Logger.w(TAG, "downloadToFile: mp3 transcode failed, falling back to $sourceContainer output")
                     when {
                         sourceContainer == "m4a" -> canonicalM4a(tmpFile)
                         M4aEncoder.isTranscodable(sourceMime) -> m4aFrom(tmpFile)
@@ -560,7 +681,7 @@ object DownloadManager {
         }
 
         if (finalAudio == null) {
-            Log.w(TAG, "downloadToFile: could not produce ${format.name} output from $sourceContainer/$sourceMime")
+            Logger.w(TAG, "downloadToFile: could not produce ${format.name} output from $sourceContainer/$sourceMime")
             runCatching { tmpFile.delete() }
             lastDownloadError = "Audio conversion failed"
             return TrackResult.Failed(effectiveTitle, effectiveArtist, effectiveAlbum)
@@ -613,7 +734,7 @@ object DownloadManager {
                 ),
             )
         }
-        Log.w(TAG, "downloadToFile: MediaStore save failed")
+        Logger.w(TAG, "downloadToFile: MediaStore save failed")
         lastDownloadError = "Couldn't save file"
         return TrackResult.Failed(effectiveTitle, effectiveArtist, effectiveAlbum)
     }
@@ -633,16 +754,16 @@ object DownloadManager {
 
         val searchResult = runCatching {
             YouTube.search(searchText, YouTube.SearchFilter.FILTER_SONG).getOrNull()
-        }.onFailure { Log.e(TAG, "resolveStream: search failed: ${it.message}", it) }
+        }.onFailure { Logger.e(TAG, "resolveStream: search failed: ${it.message}", it) }
             .getOrNull()
         if (searchResult == null || searchResult.items.isEmpty()) {
-            Log.w(TAG, "resolveStream: no results for '$searchText'")
+            Logger.w(TAG, "resolveStream: no results for '$searchText'")
             return null
         }
 
         val songItems = searchResult.items.filterIsInstance<SongItem>()
         if (songItems.isEmpty()) {
-            Log.w(TAG, "resolveStream: no song items for '$searchText'")
+            Logger.w(TAG, "resolveStream: no song items for '$searchText'")
             return null
         }
 
@@ -657,7 +778,7 @@ object DownloadManager {
         }.sortedByDescending { it.score }
 
         val chosen = scored.firstOrNull()?.item ?: run {
-            Log.w(TAG, "resolveStream: no acceptable match for '$searchText'")
+            Logger.w(TAG, "resolveStream: no acceptable match for '$searchText'")
             return null
         }
 
@@ -672,17 +793,17 @@ object DownloadManager {
                 skipValidation = true,
                 preferredMimeType = preferredMimeType,
             ).getOrNull()
-        }.onFailure { Log.e(TAG, "resolveStream: playback resolve failed: ${it.message}", it) }
+        }.onFailure { Logger.e(TAG, "resolveStream: playback resolve failed: ${it.message}", it) }
             .getOrNull()
 
         val data = playback ?: run {
-            Log.w(TAG, "resolveStream: no playback data for ${chosen.id}")
+            Logger.w(TAG, "resolveStream: no playback data for ${chosen.id}")
             return null
         }
 
         val streamUrl = data.streamUrl
         if (streamUrl.isBlank()) {
-            Log.w(TAG, "resolveStream: empty stream url for ${chosen.id}")
+            Logger.w(TAG, "resolveStream: empty stream url for ${chosen.id}")
             return null
         }
 
@@ -706,7 +827,7 @@ object DownloadManager {
             java.io.BufferedOutputStream(tmpFile.outputStream()).use { output ->
                 outer@ while (true) {
                     if (shouldAbort?.invoke() == true) {
-                        Log.i(TAG, "httpDownloadRanged: aborted at $position bytes")
+                        Logger.i(TAG, "httpDownloadRanged: aborted at $position bytes")
                         return false
                     }
                     val end = if (total > 0) minOf(position + chunk - 1, total - 1) else position + chunk - 1
@@ -720,7 +841,7 @@ object DownloadManager {
                         try {
                             val code = conn.responseCode
                             if (code !in 200..299) {
-                                Log.e(TAG, "httpDownloadRanged: HTTP $code at $position (attempt $attempt)")
+                                Logger.e(TAG, "httpDownloadRanged: HTTP $code at $position (attempt $attempt)")
                                 lastDownloadError = "Stream returned HTTP $code"
                                 return false
                             }
@@ -736,7 +857,7 @@ object DownloadManager {
                                     val r = input.read(buf)
                                     if (r < 0) break
                                     if (shouldAbort != null && shouldAbort()) {
-                                        Log.i(TAG, "httpDownloadRanged: aborted mid-chunk at $position")
+                                        Logger.i(TAG, "httpDownloadRanged: aborted mid-chunk at $position")
                                         return false
                                     }
                                     output.write(buf, 0, r)
@@ -750,7 +871,7 @@ object DownloadManager {
                             break
                         } catch (e: Exception) {
                             if (shouldAbort?.invoke() == true) return false
-                            Log.w(TAG, "httpDownloadRanged: chunk @$position failed attempt $attempt: ${e.message}")
+                            Logger.w(TAG, "httpDownloadRanged: chunk @$position failed attempt $attempt: ${e.message}")
                             if (attempt >= 4) {
                                 lastDownloadError = e.message ?: "Connection reset"
                                 return false
@@ -767,7 +888,7 @@ object DownloadManager {
             val ok = total <= 0 || position >= total
             ok
         } catch (e: Exception) {
-            Log.e(TAG, "httpDownloadRanged: exception: ${e.message}", e)
+            Logger.e(TAG, "httpDownloadRanged: exception: ${e.message}", e)
             lastDownloadError = e.message ?: "Download error"
             false
         }
@@ -803,7 +924,7 @@ object DownloadManager {
                 null
             }
         }.getOrElse {
-            Log.w(TAG, "fetchCoverForTags: failed: ${it.message}")
+            Logger.w(TAG, "fetchCoverForTags: failed: ${it.message}")
             runCatching { cached.delete() }
             null
         }
@@ -827,9 +948,9 @@ object DownloadManager {
         if (picked != null && DownloadFolder.hasAccess(context, picked)) {
             val uri = DownloadFolder.create(context, picked, "$fileName.$ext", mime, tmpFile)
             if (uri != null) return uri.toString()
-            Log.w(TAG, "saveToDestination: picked folder failed, falling back to Music/$folderName")
+            Logger.w(TAG, "saveToDestination: picked folder failed, falling back to Music/$folderName")
         } else if (picked != null) {
-            Log.w(TAG, "saveToDestination: no access to the picked folder, using Music/$folderName")
+            Logger.w(TAG, "saveToDestination: no access to the picked folder, using Music/$folderName")
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -845,14 +966,14 @@ object DownloadManager {
             val uri = context.contentResolver.insert(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values
             ) ?: run {
-                Log.w(TAG, "saveToDestination: MediaStore insert returned null")
+                Logger.w(TAG, "saveToDestination: MediaStore insert returned null")
                 return null
             }
             try {
                 context.contentResolver.openOutputStream(uri)?.use { out ->
                     tmpFile.inputStream().use { it.copyTo(out) }
                 } ?: run {
-                    Log.w(TAG, "saveToDestination: openOutputStream returned null")
+                    Logger.w(TAG, "saveToDestination: openOutputStream returned null")
                     context.contentResolver.delete(uri, null, null)
                     return null
                 }
@@ -860,7 +981,7 @@ object DownloadManager {
                 values.put(MediaStore.MediaColumns.IS_PENDING, 0)
                 context.contentResolver.update(uri, values, null, null)
             } catch (e: Exception) {
-                Log.w(TAG, "saveToDestination: MediaStore write failed: ${e.message}")
+                Logger.w(TAG, "saveToDestination: MediaStore write failed: ${e.message}")
                 runCatching { context.contentResolver.delete(uri, null, null) }
                 return null
             }
@@ -872,7 +993,7 @@ object DownloadManager {
             ).apply { mkdirs() }
             val outFile = java.io.File(dir, "$fileName.$ext")
             if (!tmpFile.renameTo(outFile)) {
-                Log.w(TAG, "saveToDestination: rename to public dir failed (API < 29)")
+                Logger.w(TAG, "saveToDestination: rename to public dir failed (API < 29)")
                 return null
             }
             return outFile.absolutePath

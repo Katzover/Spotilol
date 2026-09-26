@@ -1,5 +1,6 @@
 package com.project.lol.webview.helpers
 
+import com.project.lol.R
 import org.json.JSONObject
 
 /**
@@ -18,13 +19,13 @@ import org.json.JSONObject
 
 object LyricsTheme {
 
-    /** (prefValue, settingsLabel) - feeds SingleChoiceDialog directly. */
-    val STYLE_OPTIONS: List<Pair<String, String>> = listOf(
-        "default" to "Spotify Default",
-        "fullscreen" to "Fullscreen (Album Colors)",
-        "compact" to "Compact",
-        "karaoke" to "Karaoke",
-        "bold" to "Bold Large"
+    /** (prefValue, settingsLabelRes) - feeds SingleChoiceDialog directly. */
+    val STYLE_OPTIONS: List<Pair<String, Int>> = listOf(
+        "default" to R.string.settings_lyrics_style_spotify_default,
+        "fullscreen" to R.string.settings_lyrics_style_fullscreen,
+        "compact" to R.string.settings_lyrics_style_compact,
+        "karaoke" to R.string.settings_lyrics_style_karaoke,
+        "bold" to R.string.settings_lyrics_style_bold
     )
 
     const val DEFAULT_STYLE = "fullscreen"

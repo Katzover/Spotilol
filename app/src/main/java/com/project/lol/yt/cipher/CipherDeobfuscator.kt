@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.util.Log
+import com.project.lol.util.Logger
 
 object CipherDeobfuscator {
     private const val TAG = "Metrolist_CipherDeobfusc"
@@ -23,14 +23,14 @@ object CipherDeobfuscator {
         return try {
             deobfuscateInternal(signatureCipher, videoId, isRetry = false)
         } catch (e: Exception) {
-            Log.e(TAG, "Cipher deobfuscation failed, retrying with fresh JS: ${e.message}", e)
+            Logger.e(TAG, "Cipher deobfuscation failed, retrying with fresh JS: ${e.message}", e)
             // Invalidate cache and retry once with fresh player JS
             try {
                 PlayerJsFetcher.invalidateCache()
                 closeWebView()
                 deobfuscateInternal(signatureCipher, videoId, isRetry = true)
             } catch (retryE: Exception) {
-                Log.e(TAG, "Cipher deobfuscation retry also failed: ${retryE.message}", retryE)
+                Logger.e(TAG, "Cipher deobfuscation retry also failed: ${retryE.message}", retryE)
                 null
             }
         }
@@ -44,7 +44,7 @@ object CipherDeobfuscator {
         val baseUrl = params["url"]
 
         if (obfuscatedSig == null || baseUrl == null) {
-            Log.e(TAG, "Could not parse signatureCipher params: s=${obfuscatedSig != null}, url=${baseUrl != null}")
+            Logger.e(TAG, "Could not parse signatureCipher params: s=${obfuscatedSig != null}, url=${baseUrl != null}")
             return null
         }
 
@@ -70,7 +70,7 @@ object CipherDeobfuscator {
         return try {
             transformNInternal(url)
         } catch (e: Exception) {
-            Log.e(TAG, "N-transform failed, returning original URL: ${e.message}", e)
+            Logger.e(TAG, "N-transform failed, returning original URL: ${e.message}", e)
             url
         }
     }
@@ -86,7 +86,7 @@ object CipherDeobfuscator {
         val webView = getOrCreateWebView(forceRefresh = false) ?: return url
 
         if (!webView.nFunctionAvailable) {
-            Log.e(TAG, "N-transform function was not discovered at init time")
+            Logger.e(TAG, "N-transform function was not discovered at init time")
             return url
         }
 
@@ -112,7 +112,7 @@ object CipherDeobfuscator {
         // Fetch player JS
         val result = PlayerJsFetcher.getPlayerJs(forceRefresh = forceRefresh)
         if (result == null) {
-            Log.e(TAG, "Failed to get player JS")
+            Logger.e(TAG, "Failed to get player JS")
             return null
         }
         val (playerJs, hash) = result
@@ -121,14 +121,14 @@ object CipherDeobfuscator {
         val sigInfo = FunctionNameExtractor.extractSigFunctionInfo(playerJs)
 
         if (sigInfo == null) {
-            Log.e(TAG, "Could not extract signature function info from player JS")
+            Logger.e(TAG, "Could not extract signature function info from player JS")
             return null
         }
 
         // Extract n-transform function info (for throttle avoidance / 403 fix)
         val nFuncInfo = FunctionNameExtractor.extractNFunctionInfo(playerJs)
         if (nFuncInfo == null) {
-            Log.e(TAG, "Could not extract n-function info from player JS (will try brute-force)")
+            Logger.e(TAG, "Could not extract n-function info from player JS (will try brute-force)")
         }
 
         // Create WebView — n-function is exported to window if found, with brute-force fallback

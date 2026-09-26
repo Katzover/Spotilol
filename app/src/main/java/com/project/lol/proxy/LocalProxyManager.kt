@@ -8,7 +8,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
-import android.util.Log
+import com.project.lol.util.Logger
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
@@ -148,7 +148,7 @@ object LocalProxyManager {
                     newKs.setKeyEntry(CA_ALIAS, caKeyPair!!.private, password.toCharArray(), arrayOf(caCert))
                     ksFile.outputStream().use { newKs.store(it, password.toCharArray()) }
                 } catch (e2: Exception) {
-                    Log.w(TAG, "Failed to load/migrate CA, regenerating", e2)
+                    Logger.w(TAG, "Failed to load/migrate CA, regenerating", e2)
                     ksFile.delete()
                     generateCA(ksFile, password)
                 }
@@ -261,10 +261,12 @@ object LocalProxyManager {
     @Synchronized
     fun start() {
         if (acceptorFuture?.isDone == false) return
+        Logger.i(TAG, "starting local proxy (caLoaded=${caCert != null})")
         acceptorFuture = acceptorPool().submit {
             try {
                 val ss = ServerSocket(0, 128, java.net.InetAddress.getByName("127.0.0.1"))
                 serverSocket = ss
+                Logger.i(TAG, "proxy listening on 127.0.0.1:${ss.localPort}")
 
                 while (!ss.isClosed) {
                     val client = try {
@@ -275,17 +277,18 @@ object LocalProxyManager {
                     pool().execute { handleConnection(client) }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to start proxy", e)
+                Logger.e(TAG, "Failed to start proxy", e)
             }
         }
     }
 
     @Synchronized
     fun stop() {
+        Logger.i(TAG, "stopping local proxy (running=${serverSocket != null})")
         try {
             serverSocket?.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping proxy", e)
+            Logger.e(TAG, "Error stopping proxy", e)
         } finally {
             serverSocket = null
         }
@@ -375,7 +378,7 @@ object LocalProxyManager {
 
         val hostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
         if (!hostnameVerifier.verify(host, socket.session)) {
-            Log.e(TAG, "SECURITY ALERT: Hostname verification failed for $host. Possible network attack.")
+            Logger.e(TAG, "SECURITY ALERT: Hostname verification failed for $host. Possible network attack.")
             throw SSLPeerUnverifiedException("Cannot verify hostname: $host")
         }
 
@@ -398,10 +401,10 @@ object LocalProxyManager {
                 } while (line.isNotEmpty())
                 handleConnect(client, host, targetPort)
             } else {
-                Log.w(TAG, "Non-CONNECT request, ignoring: $requestLine")
+                Logger.w(TAG, "Non-CONNECT request, ignoring: $requestLine")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Connection error", e)
+            Logger.e(TAG, "Connection error", e)
         } finally {
             try { client.close() } catch (_: Exception) {}
         }
@@ -822,7 +825,7 @@ object LocalProxyManager {
 
     fun isCAInstalled(): Boolean {
         val ourCa = caCert ?: run {
-            Log.e(TAG, "CA cert not loaded yet - cannot check installation")
+            Logger.e(TAG, "CA cert not loaded yet - cannot check installation")
             return false
         }
 
@@ -843,7 +846,7 @@ object LocalProxyManager {
             }
             return false
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to query AndroidCAStore", e)
+            Logger.e(TAG, "Failed to query AndroidCAStore", e)
             return false
         }
     }
@@ -858,7 +861,7 @@ object LocalProxyManager {
      */
     fun exportCACert(context: Context): String {
         val ourCa = caCert ?: run {
-            Log.e(TAG, "CA cert not loaded - cannot export")
+            Logger.e(TAG, "CA cert not loaded - cannot export")
             return "export failed"
         }
         val pem = try {
@@ -925,7 +928,7 @@ object LocalProxyManager {
                 val name = realName ?: displayName
                 File(File(Environment.getExternalStorageDirectory(), Environment.DIRECTORY_DOWNLOADS), name).absolutePath
             } catch (e: Exception) {
-                Log.e(TAG, "MediaStore export failed, falling back to app dir", e)
+                Logger.e(TAG, "MediaStore export failed, falling back to app dir", e)
                 try { resolver.delete(uri, null, null) } catch (_: Exception) {}
                 exportToFileDir(context, pem)
             }
@@ -949,7 +952,7 @@ object LocalProxyManager {
             file.writeText(pem)
             file.absolutePath
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to export CA certificate", e)
+            Logger.e(TAG, "Failed to export CA certificate", e)
             "export failed"
         }
     }

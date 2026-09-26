@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
@@ -53,7 +53,7 @@ object EjsNTransformSolver {
             }
 
             if (!solver.nFunctionAvailable) {
-                Log.e(TAG, "EJS n-solver not available")
+                Logger.e(TAG, "EJS n-solver not available")
                 return@withContext url
             }
 
@@ -64,7 +64,7 @@ object EjsNTransformSolver {
                     "$1n=${Uri.encode(transformed)}"
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "SABR n-transform failed: ${e.message}", e)
+                Logger.e(TAG, "SABR n-transform failed: ${e.message}", e)
                 url
             }
         }
@@ -78,7 +78,7 @@ object EjsNTransformSolver {
 
             val result = PlayerJsFetcher.getPlayerJs(forceRefresh = false)
             if (result == null) {
-                Log.e(TAG, "Failed to get player JS for EJS solver")
+                Logger.e(TAG, "Failed to get player JS for EJS solver")
                 return@withContext null
             }
             val (playerJs, hash) = result
@@ -88,7 +88,7 @@ object EjsNTransformSolver {
                 solverWebView = sv
                 sv
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to create EJS solver: ${e.message}", e)
+                Logger.e(TAG, "Failed to create EJS solver: ${e.message}", e)
                 null
             }
         }
@@ -135,7 +135,7 @@ object EjsNTransformSolver {
                 override fun onConsoleMessage(m: ConsoleMessage): Boolean {
                     val msg = m.message()
                     if (msg.contains("Uncaught")) {
-                        Log.e(TAG, "EJS WebView error: $msg at ${m.sourceId()}:${m.lineNumber()}")
+                        Logger.e(TAG, "EJS WebView error: $msg at ${m.sourceId()}:${m.lineNumber()}")
                     }
                     return super.onConsoleMessage(m)
                 }
@@ -246,7 +246,7 @@ function transformN(nValue) {
 
         @JavascriptInterface
         fun onSolverError(error: String) {
-            Log.e(TAG, "EJS solver error: $error")
+            Logger.e(TAG, "EJS solver error: $error")
             initContinuation.resume(this)
         }
 
@@ -274,7 +274,7 @@ function transformN(nValue) {
 
         @JavascriptInterface
         fun onNError(error: String) {
-            Log.e(TAG, "N-transform error: $error")
+            Logger.e(TAG, "N-transform error: $error")
             nContinuation?.resumeWithException(SabrException("EJS n-transform failed: $error"))
             nContinuation = null
         }

@@ -1,8 +1,8 @@
 package com.project.lol.yt
 
-import android.util.Log
+import com.project.lol.util.Logger
 
 /** Minimal stand-in for Meld's reportException (no crash-reporting backend here). */
 fun reportException(throwable: Throwable) {
-    Log.e("Spl-DL", "Exception", throwable)
+    Logger.e("Spl-DL", "Exception", throwable)
 }

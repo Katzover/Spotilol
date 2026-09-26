@@ -44,13 +44,21 @@ object CollectionDownload {
                 return null;
             }
         
+            function scrollable(el){
+                if (!el) return false;
+                var oy = getComputedStyle(el).overflowY;
+                if (oy !== 'auto' && oy !== 'scroll' && oy !== 'overlay') return false;
+                return el.scrollHeight > el.clientHeight + 100;
+            }
+        
             function findScroller(from){
                 var el = from;
                 while (el && el !== document.body) {
-                    if (el.scrollHeight > el.clientHeight + 100) return el;
+                    if (scrollable(el)) return el;
                     el = el.parentElement;
                 }
-                return null;
+                var se = document.scrollingElement;
+                return scrollable(se) ? se : null;
             }
         
             function upCover(url){
@@ -85,33 +93,44 @@ object CollectionDownload {
                 return n || fallback;
             }
         
-            function loadAll(cb){
+            function loadAll(albumFallback, cb){
                 var tl = mainGrid();
-                if (!tl) { cb(null); return; }
+                if (!tl) { cb([]); return; }
                 var sc = findScroller(tl);
                 var top = sc ? sc.scrollTop : 0;
                 var target = parseInt(tl.getAttribute('aria-rowcount') || '0', 10) || 0;
-                var last = -1, stable = 0, iter = 0;
+                var seen = {}, out = [];
+                var step = sc ? Math.max(240, Math.round(sc.clientHeight * 0.5)) : 0;
+                var t0 = Date.now();
+                var iter = 0, last = -1, stall = 0;
+                if (sc) { try { sc.scrollTop = 0; } catch(e){} }
+                var finish = function(){
+                    clearInterval(iv);
+                    if (sc) { try { sc.scrollTop = top; } catch(e){} }
+                    setTimeout(function(){ cb(out); }, 300);
+                };
                 var iv = setInterval(function(){
                     iter++;
-                    if (sc) { try { sc.scrollTop = sc.scrollHeight; } catch(e){} }
-                    try { window.dispatchEvent(new Event('scroll')); } catch(e){}
-                    var c = tl.querySelectorAll(ROW_SEL).length;
-                    if (c === last) stable++; else stable = 0;
-                    last = c;
-                    if ((target > 0 && c >= target - 1) || stable >= 5 || iter >= 90) {
-                        clearInterval(iv);
-                        if (sc) { try { sc.scrollTop = top; } catch(e){} }
-                        setTimeout(function(){ cb(tl); }, 300);
+                    scrapeInto(albumFallback, tl, seen, out);
+                    var pending = sc ? (sc.scrollTop < sc.scrollHeight - sc.clientHeight - 2) : false;
+                    if (out.length === last) stall++; else stall = 0;
+                    last = out.length;
+                    if ((target > 0 && out.length >= target - 1) || (!pending && stall >= 3)) { finish(); return; }
+                    if (iter >= 1200 || (Date.now() - t0) > 120000) { finish(); return; }
+                    if (iter % 8 === 0) {
+                        try {
+                            if (typeof window.splDownloadProgress === 'function') {
+                                window.splDownloadProgress(0, 'Loading tracklist... ' + out.length + (target > 0 ? '/' + (target - 1) : ''));
+                            }
+                        } catch(e2){}
                     }
-                }, 250);
+                    if (sc) { try { sc.scrollTop = Math.min(sc.scrollTop + step, sc.scrollHeight); } catch(e){} }
+                }, 200);
             }
         
-            function scrape(albumFallback, grid){
-                var root = grid || document;
+            function scrapeInto(albumFallback, root, seen, out){
                 var rows = root.querySelectorAll(ROW_SEL);
                 var checkReco = !!root.querySelector(RECO_SEL);
-                var seen = {}, out = [];
                 for (var i = 0; i < rows.length; i++) {
                     var row = rows[i];
                     if (checkReco && inRecommendations(row)) continue;
@@ -135,7 +154,6 @@ object CollectionDownload {
                     var cover = (img && img.src) ? upCover(img.src) : '';
                     out.push({ trackId: id, title: title, artist: arts.join(', '), album: album, cover: cover });
                 }
-                return out;
             }
         
             function busy(){
@@ -158,8 +176,7 @@ object CollectionDownload {
                         window.splDownloadProgress(0, 'Loading tracklist...');
                     }
                 } catch(e2){}
-                loadAll(function(grid){
-                    var tracks = scrape(albumFallback, grid);
+                loadAll(albumFallback, function(tracks){
                     window.__splColBusy = false;
                     if (btn) btn.classList.remove('spl-ab-busy');
                     if (!tracks.length) {

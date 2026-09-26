@@ -9,7 +9,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="Service is not enabled"
+        android:text="@string/service_disabled_message"
         android:textColor="#B3B3B3"
         android:textSize="18sp" />
 

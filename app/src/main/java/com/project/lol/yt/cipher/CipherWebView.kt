@@ -13,7 +13,7 @@ import androidx.webkit.WebViewAssetLoader.InternalStoragePathHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
@@ -79,10 +79,10 @@ class CipherWebView private constructor(
                 when (m.messageLevel()) {
                     ConsoleMessage.MessageLevel.ERROR -> {
                         if (!msg.contains("is not defined")) {
-                            Log.e(TAG, "JS ERROR: $msg at $src")
+                            Logger.e(TAG, "JS ERROR: $msg at $src")
                         }
                     }
-                    ConsoleMessage.MessageLevel.WARNING -> Log.w(TAG, "JS WARN: $msg at $src")
+                    ConsoleMessage.MessageLevel.WARNING -> Logger.w(TAG, "JS WARN: $msg at $src")
                     else -> {}
                 }
                 return super.onConsoleMessage(m)
@@ -146,13 +146,13 @@ class CipherWebView private constructor(
             val exportCode = "; " + exports.joinToString(" ")
             val modified = playerJs.replace("})(_yt_player);", "$exportCode })(_yt_player);")
             if (modified == playerJs) {
-                Log.w(TAG, "Export injection point '})(_yt_player);' not found, appending exports")
+                Logger.w(TAG, "Export injection point '})(_yt_player);' not found, appending exports")
                 playerJs + "\n" + exportCode
             } else {
                 modified
             }
         } else {
-            Log.w(TAG, "No exports to inject")
+            Logger.w(TAG, "No exports to inject")
             playerJs
         }
 
@@ -398,7 +398,7 @@ function discoverAndInit() {
             discoveredNFuncName = nFuncName
             nFunctionAvailable = true
         } else {
-            Log.e(TAG, "N-function NOT AVAILABLE")
+            Logger.e(TAG, "N-function NOT AVAILABLE")
             nFunctionAvailable = false
         }
     }
@@ -419,8 +419,8 @@ function discoverAndInit() {
 
     @JavascriptInterface
     fun onPlayerJsError(error: String) {
-        Log.e(TAG, "=== PLAYER.JS LOAD FAILED ===")
-        Log.e(TAG, "Error: $error")
+        Logger.e(TAG, "=== PLAYER.JS LOAD FAILED ===")
+        Logger.e(TAG, "Error: $error")
         initContinuation.resumeWithException(CipherException("Player JS load failed: $error"))
     }
 
@@ -429,7 +429,7 @@ function discoverAndInit() {
     suspend fun deobfuscateSignature(obfuscatedSig: String): String {
 
         if (sigInfo == null) {
-            Log.e(TAG, "Signature function info not available")
+            Logger.e(TAG, "Signature function info not available")
             throw CipherException("Signature function info not available")
         }
 
@@ -451,8 +451,8 @@ function discoverAndInit() {
 
     @JavascriptInterface
     fun onSigError(error: String) {
-        Log.e(TAG, "========== SIGNATURE ERROR ==========")
-        Log.e(TAG, "Error: $error")
+        Logger.e(TAG, "========== SIGNATURE ERROR ==========")
+        Logger.e(TAG, "Error: $error")
         sigContinuation?.resumeWithException(CipherException("Sig deobfuscation failed: $error"))
         sigContinuation = null
     }
@@ -462,7 +462,7 @@ function discoverAndInit() {
     suspend fun transformN(nValue: String): String {
 
         if (!nFunctionAvailable) {
-            Log.e(TAG, "N-transform function not discovered")
+            Logger.e(TAG, "N-transform function not discovered")
             throw CipherException("N-transform function not discovered")
         }
 
@@ -483,8 +483,8 @@ function discoverAndInit() {
 
     @JavascriptInterface
     fun onNError(error: String) {
-        Log.e(TAG, "========== N-TRANSFORM ERROR ==========")
-        Log.e(TAG, "Error: $error")
+        Logger.e(TAG, "========== N-TRANSFORM ERROR ==========")
+        Logger.e(TAG, "Error: $error")
         nContinuation?.resumeWithException(CipherException("N-transform failed: $error"))
         nContinuation = null
     }

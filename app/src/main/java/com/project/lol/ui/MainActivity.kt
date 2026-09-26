@@ -1,6 +1,5 @@
 package com.project.lol.ui
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -9,7 +8,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -36,7 +34,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -81,10 +78,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +90,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -115,8 +109,10 @@ import com.project.lol.offline.DownloadManager
 import com.project.lol.profile.ProfileManager
 import com.project.lol.proxy.LocalProxyManager
 import com.project.lol.service.MediaNotificationService
-import com.project.lol.ui.components.SettingsDrawer
+import com.project.lol.ui.components.SettingsDialog
 import com.project.lol.ui.theme.SpotifyTheme
+import com.project.lol.util.BuildInfo
+import com.project.lol.util.Logger
 import com.project.lol.util.UpdateChecker
 import com.project.lol.webview.SpotifyWebChromeClient
 import com.project.lol.webview.SpotifyWebViewClient
@@ -125,6 +121,9 @@ import com.project.lol.webview.helpers.LyricsTheme
 import com.project.lol.webview.helpers.buildAmoledJs
 import com.project.lol.webview.helpers.buildCustomCssJs
 import com.project.lol.webview.injections.LogoutCheck
+import compose.icons.TablerIcons
+import compose.icons.tablericons.Menu2
+import compose.icons.tablericons.Settings
 import java.lang.ref.WeakReference
 import java.net.HttpURLConnection
 import java.net.URL
@@ -142,6 +141,10 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        private const val TAG = "main"
+    }
+
     private var webView: WebView? = null
     private var serviceStarted = false
     @Volatile private var pipCoverBitmap: Bitmap? = null
@@ -153,8 +156,8 @@ class MainActivity : ComponentActivity() {
     private var pipVideoView: View? = null
     private var pipVideoCallback: android.webkit.WebChromeClient.CustomViewCallback? = null
     private var pipVideoAspect: Rational? = null
-    private var pipVideoPending = false
-    private val pipVideoTimeout = Handler(Looper.getMainLooper())
+    private var pipVideoRequested = false
+    private val pipVideoActive = mutableStateOf(false)
 
     private val serviceEnabledState = mutableStateOf(true)
     private val materialYouState = mutableStateOf(false)
@@ -174,14 +177,6 @@ class MainActivity : ComponentActivity() {
     private val blockServiceWorkerState = mutableStateOf(true)
     private val webViewError = mutableStateOf<Pair<Int, String>?>(null)
     private var pendingLink: String? = null
-
-    private val notifPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> }
-
-    private val btPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _ -> requestNotificationPermission() }
 
     private lateinit var prefs: SharedPreferences
 
@@ -216,10 +211,9 @@ class MainActivity : ComponentActivity() {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
-        requestBluetoothPermission()
         val uc = UpdateChecker(this)
         uc.autoCheck { url ->
-            Toast.makeText(this, "A new update is available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.main_update_available), Toast.LENGTH_SHORT).show()
             Handler(Looper.getMainLooper()).postDelayed({
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -245,6 +239,13 @@ class MainActivity : ComponentActivity() {
             setServiceEnabled(true)
         }
 
+        Logger.s(
+            TAG,
+            "session: loggedIn=$loggedIn service=${serviceEnabledState.value} mode=${prefs.getString("ConnectionMode", "normal")} " +
+                "engine=${prefs.getString("PlayerMode", "spotilol")} proxyRunning=${LocalProxyManager.isRunning} " +
+                "deeplink=${pendingLink ?: "none"} logging=${com.project.lol.util.Logger.isEnabled()}"
+        )
+
         setContent {
             val serviceEnabled = serviceEnabledState.value
             val materialYou = materialYouState.value
@@ -257,8 +258,9 @@ class MainActivity : ComponentActivity() {
             val timerActive = sleepTimerActive.value
             val loadProgress = loadingProgress.intValue
             val blockServiceWorker = blockServiceWorkerState.value
+            val pipFilling = pipVideoActive.value
 
-            var settingsDrawerOpen by remember { mutableStateOf(false) }
+            var settingsDialogOpen by remember { mutableStateOf(false) }
             var showMiniMenu by remember { mutableStateOf(false) }
             val versionName = remember {
                 runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
@@ -271,18 +273,18 @@ class MainActivity : ComponentActivity() {
                 AccentTheme.resolveColor(this@MainActivity)
             }
 
-            BackHandler(enabled = settingsDrawerOpen || webView?.canGoBack() == true) {
-                if (settingsDrawerOpen) {
-                    settingsDrawerOpen = false
+            BackHandler(enabled = settingsDialogOpen || webView?.canGoBack() == true) {
+                if (settingsDialogOpen) {
+                    settingsDialogOpen = false
                 } else {
                     webView?.goBack()
                 }
             }
 
             SpotifyTheme(useDynamicColor = materialYou, amoled = amoled, seedColor = seedColor) {
-                SettingsDrawer(
-                    visible = settingsDrawerOpen,
-                    onClose = { settingsDrawerOpen = false },
+                SettingsDialog(
+                    visible = settingsDialogOpen,
+                    onClose = { settingsDialogOpen = false },
                     prefs = prefs,
                     materialYou = materialYou,
                     onMaterialYouChange = { enabled ->
@@ -330,7 +332,7 @@ class MainActivity : ComponentActivity() {
                     onDebugToggle = { enabled ->
                         webView?.evaluateJavascript(
                             if (enabled) DevLogPrelude.js()
-                            else "window.dbg=null;window.dbgw=null;window.dbge=null;window.DevLog=null;",
+                            else "window.dbg=null;window.dbgv=null;window.dbgi=null;window.dbgw=null;window.dbge=null;window.DevLog=null;",
                             null
                         )
                     },
@@ -342,17 +344,17 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Scaffold(
                         topBar = {
-                            if (!hideTopBar) {
+                            if (!hideTopBar && !pipFilling) {
                                 CenterAlignedTopAppBar(
                                 title = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = "Spotilol",
+                                            text = stringResource(R.string.app_name),
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(Modifier.width(6.dp))
                                         Text(
-                                            text = "v$versionName",
+                                            text = stringResource(R.string.main_version_label, versionName, BuildInfo.id),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -361,13 +363,13 @@ class MainActivity : ComponentActivity() {
                                 navigationIcon = {
                                     IconButton(onClick = {
                                         analytics.logEvent("open_settings", Bundle().apply {
-                                            putString(FirebaseAnalytics.Param.SCREEN_NAME, "SettingsDrawer")
+                                            putString(FirebaseAnalytics.Param.SCREEN_NAME, "SettingsDialog")
                                         })
-                                        settingsDrawerOpen = true
+                                        settingsDialogOpen = true
                                     }) {
                                         Icon(
-                                            imageVector = Icons.Default.Menu,
-                                            contentDescription = "Settings",
+                                            imageVector = TablerIcons.Menu2,
+                                            contentDescription = stringResource(R.string.main_settings_content_description),
                                             tint = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
@@ -522,6 +524,12 @@ class MainActivity : ComponentActivity() {
                                             ?: if (loggedIn) "https://open.spotify.com/"
                                             else "https://accounts.spotify.com/login"
                                         pendingLink = null
+                                        Logger.i(
+                                            TAG,
+                                            "webview ready: js=on dom=on multiWindow=on bfcache=" +
+                                                WebViewFeature.isFeatureSupported(WebViewFeature.BACK_FORWARD_CACHE) +
+                                                " proxy=$useProxy target=$target"
+                                        )
                                         loadUrl(target)
                                     }
                                 },
@@ -603,7 +611,10 @@ class MainActivity : ComponentActivity() {
                                         .inflate(R.layout.service_disabled, null).apply {
                                             val tvVersion = findViewById<TextView>(R.id.tvWebViewVersion)
                                             val pkg = WebViewCompat.getCurrentWebViewPackage(context)
-                                            tvVersion.text = "Webview: ${pkg?.versionName ?: "N/A"}"
+                                            tvVersion.text = context.getString(
+                                                R.string.main_webview_version,
+                                                pkg?.versionName ?: context.getString(R.string.main_webview_version_unknown)
+                                            )
                                         }
                                 },
                                 modifier = Modifier.fillMaxSize()
@@ -616,7 +627,7 @@ class MainActivity : ComponentActivity() {
                                 onToggleMenu = { showMiniMenu = !showMiniMenu },
                                 onOpenSettings = {
                                     showMiniMenu = false
-                                    settingsDrawerOpen = true
+                                    settingsDialogOpen = true
                                 },
                                 serviceEnabled = serviceEnabled,
                                 onServiceToggle = { newValue -> setServiceEnabled(newValue) },
@@ -639,6 +650,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setServiceEnabled(newValue: Boolean) {
+        Logger.i(TAG, "service toggle: $newValue")
         serviceEnabledState.value = newValue
         prefs.edit().putBoolean("ServiceOn", newValue).apply()
         if (!newValue) {
@@ -656,6 +668,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun switchConnectionMode(mode: String) {
+        Logger.i(TAG, "connection mode -> $mode, restarting app")
         prefs.edit().putString("ConnectionMode", mode).apply()
         prefs.edit().putBoolean("ServiceOn", false).apply()
         stopService(Intent(this, MediaNotificationService::class.java))
@@ -668,6 +681,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun switchOfflineMode(enabled: Boolean) {
+        Logger.i(TAG, "offline mode -> $enabled, restarting app")
         prefs.edit().putBoolean("OfflineMode", enabled).apply()
         stopService(Intent(this, MediaNotificationService::class.java))
         val intent = Intent(this, SplashActivity::class.java).apply {
@@ -678,13 +692,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveProfile(name: String, cookies: String) {
+        Logger.i(TAG, "saving account profile: $name")
         ProfileManager.saveProfile(this, name, cookies)
-        Toast.makeText(this, "Account saved", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.main_account_saved), Toast.LENGTH_SHORT).show()
     }
 
     private fun loadProfile(cookies: String) {
+        Logger.i(TAG, "loading account profile (${cookies.length} chars)")
         if (!ProfileManager.applyProfile(this, cookies)) {
-            Toast.makeText(this, "Profile could not be loaded", Toast.LENGTH_SHORT).show()
+            Logger.w(TAG, "profile could not be applied")
+            Toast.makeText(this, getString(R.string.main_profile_load_failed), Toast.LENGTH_SHORT).show()
             return
         }
         val intent = Intent(this, SplashActivity::class.java).apply {
@@ -695,19 +712,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun deleteProfile(name: String) {
+        Logger.i(TAG, "deleting account profile: $name")
         ProfileManager.deleteProfile(this, name)
-        Toast.makeText(this, "Profile deleted", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.main_profile_deleted), Toast.LENGTH_SHORT).show()
     }
 
     private fun clearWebViewCache() {
+        Logger.i(TAG, "clearing webview cache and history")
         val wv = WebView(applicationContext)
         wv.clearCache(true)
         wv.clearHistory()
         wv.destroy()
-        Toast.makeText(this, "Cache cleared successfully", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.main_cache_cleared), Toast.LENGTH_SHORT).show()
     }
 
     private fun clearAllData() {
+        Logger.w(TAG, "clearing all data (cache, storage, cookies, login state)")
         val wv = WebView(applicationContext)
         wv.clearCache(true)
         wv.clearHistory()
@@ -717,7 +737,7 @@ class MainActivity : ComponentActivity() {
         CookieManager.getInstance().removeAllCookies(null)
         CookieManager.getInstance().flush()
         prefs.edit().putBoolean("LoggedIn", false).apply()
-        Toast.makeText(this, "All data cleared, please login again", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.main_all_data_cleared), Toast.LENGTH_SHORT).show()
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -728,6 +748,7 @@ class MainActivity : ComponentActivity() {
     private fun startSleepTimer(minutes: Int) {
         cancelSleepTimer()
         val totalMs = minutes * 60 * 1000L
+        Logger.i(TAG, "sleep timer started: ${minutes}min")
         sleepTimerActive.value = true
         sleepTimerRemainingMs.longValue = totalMs
 
@@ -747,6 +768,7 @@ class MainActivity : ComponentActivity() {
             }
 
             override fun onFinish() {
+                Logger.i(TAG, "sleep timer finished, pausing playback")
                 sleepTimerActive.value = false
                 sleepTimerRemainingMs.longValue = 0L
                 webView?.evaluateJavascript("""
@@ -760,6 +782,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun cancelSleepTimer() {
+        if (sleepTimer != null) Logger.i(TAG, "sleep timer cancelled")
         sleepTimer?.cancel()
         sleepTimer = null
         sleepTimerActive.value = false
@@ -786,7 +809,7 @@ class MainActivity : ComponentActivity() {
             val remainingSecs = timerRemainingMs / 1000
             val mins = remainingSecs / 60
             val secs = remainingSecs % 60
-            val timeStr = String.format("%d:%02d min remaining", mins, secs)
+            val timeStr = stringResource(R.string.main_timer_remaining, mins, secs)
 
             AlertDialog(
                 onDismissRequest = onDismiss,
@@ -796,7 +819,7 @@ class MainActivity : ComponentActivity() {
                 textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 title = {
                     Text(
-                        "Sleep Timer",
+                        stringResource(R.string.main_sleep_timer_title),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
@@ -808,12 +831,12 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "⏰",
+                            text = stringResource(R.string.main_sleep_timer_emoji),
                             style = MaterialTheme.typography.displaySmall
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "Timer active",
+                            text = stringResource(R.string.main_timer_active),
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
@@ -829,7 +852,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Button(onClick = onDismiss) {
-                            Text("Close")
+                            Text(stringResource(R.string.main_close))
                         }
                         Spacer(Modifier.width(12.dp))
                         Button(
@@ -838,7 +861,7 @@ class MainActivity : ComponentActivity() {
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Text("Cancel Timer")
+                            Text(stringResource(R.string.main_cancel_timer))
                         }
                     }
                 },
@@ -853,7 +876,7 @@ class MainActivity : ComponentActivity() {
                 textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 title = {
                     Text(
-                        "Sleep Timer",
+                        stringResource(R.string.main_sleep_timer_title),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
@@ -865,7 +888,7 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Set minutes:",
+                            text = stringResource(R.string.main_set_minutes),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.height(12.dp))
@@ -879,8 +902,8 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            placeholder = { Text("e.g. 25") },
-                            trailingIcon = { Text("min", style = MaterialTheme.typography.bodyMedium) }
+                            placeholder = { Text(stringResource(R.string.main_timer_minutes_hint)) },
+                            trailingIcon = { Text(stringResource(R.string.main_minutes_suffix), style = MaterialTheme.typography.bodyMedium) }
                         )
                     }
                 },
@@ -890,14 +913,14 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Button(onClick = onDismiss) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.main_cancel))
                         }
                         Spacer(Modifier.width(12.dp))
                         Button(
                             onClick = { onSetTimer(minutes) },
                             enabled = minutes > 0
                         ) {
-                            Text("Set Timer")
+                            Text(stringResource(R.string.main_set_timer))
                         }
                     }
                 },
@@ -927,7 +950,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_launcher_playstore),
-                    contentDescription = "Quick settings",
+                    contentDescription = stringResource(R.string.main_quick_settings),
                     tint = Color.Unspecified,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -957,19 +980,19 @@ class MainActivity : ComponentActivity() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Settings,
+                                    imageVector = TablerIcons.Settings,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(Modifier.width(12.dp))
                                 Text(
-                                    text = "Settings",
+                                    text = stringResource(R.string.main_settings),
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.weight(1f)
                                 )
                                 Icon(
-                                    imageVector = Icons.Default.Menu,
+                                    imageVector = TablerIcons.Menu2,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
@@ -985,7 +1008,7 @@ class MainActivity : ComponentActivity() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Service",
+                                    text = stringResource(R.string.main_service),
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.weight(1f)
@@ -1008,29 +1031,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun enterPipMode() {
+    private fun enterPipMode(video: Boolean = false) {
+        Logger.i(TAG, "entering pip mode (video=$video)")
+        pipVideoRequested = video
+        pipVideoActive.value = video
         pipUsed = true
         if (lastPipCoverUrl.isNotEmpty() && pipCoverBitmap == null) {
             fetchPipCover(lastPipCoverUrl)
         }
-        showPipOverlay()
+        if (!video) showPipOverlay()
         val ok = enterPictureInPictureMode(buildPipParams())
-        if (!ok) hidePipOverlay()
+        if (!ok) {
+            hidePipOverlay()
+            pipVideoActive.value = false
+            if (video) setPipFillVideo(false)
+        }
     }
 
     private fun enterPipVideoMode(w: Int, h: Int) {
         pipVideoAspect = if (w > 0 && h > 0) Rational(w, h) else Rational(9, 16)
-        if (pipVideoView != null) {
-            enterPipMode()
-        } else {
-            pipVideoPending = true
-            pipVideoTimeout.removeCallbacksAndMessages(null)
-            pipVideoTimeout.postDelayed({
-                if (pipVideoView == null && pipVideoPending) {
-                    pipVideoPending = false
-                    enterPipMode()
-                }
-            }, 1200)
+        pipVideoRequested = true
+        val wv = webView
+        if (wv == null) {
+            enterPipMode(video = true)
+            return
+        }
+        wv.post {
+            wv.evaluateJavascript(
+                "window.__splPipFillVideo&&window.__splPipFillVideo(true)"
+            ) { enterPipMode(video = true) }
         }
     }
 
@@ -1038,30 +1067,43 @@ class MainActivity : ComponentActivity() {
         view: View?,
         callback: android.webkit.WebChromeClient.CustomViewCallback?
     ) {
+        Logger.i(TAG, "fullscreen video view shown")
         pipVideoView = view
         pipVideoCallback = callback
         showPipVideoOverlay()
-        if (pipVideoPending) {
-            pipVideoPending = false
-            pipVideoTimeout.removeCallbacksAndMessages(null)
-            enterPipMode()
-        }
+        if (isInPictureInPictureMode) updatePipParams()
     }
 
     private fun handleCustomViewHidden() {
-        pipVideoTimeout.removeCallbacksAndMessages(null)
+        Logger.i(TAG, "fullscreen video view hidden")
         pipVideoView = null
         pipVideoCallback = null
-        pipVideoPending = false
         hidePipOverlay()
-        if (isInPictureInPictureMode) {
-            pipVideoAspect = Rational(1, 1)
-            if (pipCoverBitmap == null && lastPipCoverUrl.isNotEmpty()) {
-                fetchPipCover(lastPipCoverUrl)
-            }
-            showPipOverlay()
+        if (isInPictureInPictureMode && pipVideoRequested) {
+            setPipFillVideo(true)
             updatePipParams()
+            return
         }
+        pipVideoRequested = false
+        pipVideoActive.value = false
+        if (isInPictureInPictureMode) fallbackPipToCover()
+    }
+
+    private fun setPipFillVideo(on: Boolean) {
+        webView?.evaluateJavascript(
+            "window.__splPipFillVideo&&window.__splPipFillVideo($on)",
+            null
+        )
+    }
+
+    private fun fallbackPipToCover() {
+        if (!isInPictureInPictureMode) return
+        pipVideoAspect = Rational(1, 1)
+        if (pipCoverBitmap == null && lastPipCoverUrl.isNotEmpty()) {
+            fetchPipCover(lastPipCoverUrl)
+        }
+        showPipOverlay()
+        updatePipParams()
     }
 
     override fun onPictureInPictureModeChanged(
@@ -1070,13 +1112,15 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         if (isInPictureInPictureMode) {
-            if (pipVideoView == null) showPipOverlay()
+            if (pipVideoView == null && !pipVideoRequested) showPipOverlay()
             updatePipParams()
         } else {
             hidePipOverlay()
             pipVideoView = null
-            pipVideoPending = false
             pipVideoAspect = null
+            pipVideoRequested = false
+            pipVideoActive.value = false
+            setPipFillVideo(false)
             pipVideoCallback?.onCustomViewHidden()
             pipVideoCallback = null
         }
@@ -1091,7 +1135,7 @@ class MainActivity : ComponentActivity() {
     private fun buildPipActions(): List<RemoteAction> {
         val prev = RemoteAction(
             Icon.createWithResource(this, R.drawable.ic_skip_prev),
-            "Previous", "Previous",
+            getString(R.string.main_pip_previous), getString(R.string.main_pip_previous),
             pipActionIntent(MediaNotificationService.ACTION_PREV)
         )
         val playPause = RemoteAction(
@@ -1099,13 +1143,13 @@ class MainActivity : ComponentActivity() {
                 this,
                 if (pipPlaying) R.drawable.ic_pause else R.drawable.ic_play
             ),
-            if (pipPlaying) "Pause" else "Play",
-            if (pipPlaying) "Pause" else "Play",
+            if (pipPlaying) getString(R.string.main_pip_pause) else getString(R.string.main_pip_play),
+            if (pipPlaying) getString(R.string.main_pip_pause) else getString(R.string.main_pip_play),
             pipActionIntent(MediaNotificationService.ACTION_PLAY_PAUSE)
         )
         val next = RemoteAction(
             Icon.createWithResource(this, R.drawable.ic_skip_next),
-            "Next", "Next",
+            getString(R.string.main_pip_next), getString(R.string.main_pip_next),
             pipActionIntent(MediaNotificationService.ACTION_NEXT)
         )
         return listOf(prev, playPause, next)
@@ -1190,6 +1234,7 @@ class MainActivity : ComponentActivity() {
         try {
             val obj = JSONObject(json)
             pipPlaying = obj.optBoolean("playing", false)
+            Logger.v(TAG, "media status: playing=$pipPlaying title=${obj.optString("title", "").take(48)}")
             val coverUrl = obj.optString("cover", "")
             if (coverUrl.isNotEmpty() && coverUrl != "null" && coverUrl != lastPipCoverUrl) {
                 lastPipCoverUrl = coverUrl
@@ -1200,7 +1245,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
             runOnUiThread { updatePipParams() }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Logger.d(TAG, "media status not parseable (${json.length} chars): ${e.message}")
+        }
     }
 
     private fun fetchPipCover(url: String) {
@@ -1251,6 +1298,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startDownloadService() {
+        Logger.d(TAG, "starting download service")
         runCatching {
             ContextCompat.startForegroundService(
                 this, Intent(this, com.project.lol.service.DownloadService::class.java)
@@ -1259,10 +1307,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun destroyWebView() {
-        pipVideoTimeout.removeCallbacksAndMessages(null)
+        Logger.i(TAG, "destroying webview")
         pipVideoView = null
         pipVideoCallback = null
-        pipVideoPending = false
+        pipVideoActive.value = false
         hidePipOverlay()
         webView?.let {
             it.stopLoading()
@@ -1290,6 +1338,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Logger.d(TAG, "config changed: orientation=${newConfig.orientation} pip=$isInPictureInPictureMode")
+        if (isInPictureInPictureMode && pipVideoRequested) {
+            setPipFillVideo(true)
+            updatePipParams()
+        }
+    }
+
     private fun applyKeepScreenOn() {
         if (keepScreenOnState.value) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1299,7 +1356,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startMediaService() {
+        Logger.d(TAG, "startMediaService requested")
         if (MediaNotificationService.instance != null) {
+            Logger.d(TAG, "media service already running, rebinding webview")
             MediaNotificationService.webView = webView
             return
         }
@@ -1314,32 +1373,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-
-    private fun requestBluetoothPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                btPermLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
-            } else {
-                requestNotificationPermission()
-            }
-        } else {
-            requestNotificationPermission()
-        }
-    }
-
     override fun onStop() {
         super.onStop()
+        Logger.i(TAG, "activity stopped: suspending webview loops")
         webView?.evaluateJavascript("""
             try {
                 window.__splBg = true;
@@ -1352,6 +1388,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        Logger.i(TAG, "activity resumed: restoring webview loops")
 
         analytics.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW, Bundle().apply {
             putString(FirebaseAnalytics.Param.SCREEN_NAME, "MainActivity")
@@ -1408,6 +1445,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val link = extractSpotifyLink(intent)
+        Logger.i(TAG, "new intent received: link=${link ?: "none"}")
         if (link == null) {
             val loggedIn = prefs.getBoolean("LoggedIn", false)
             if (!loggedIn) {
@@ -1429,6 +1467,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun navigateSpotifyLink(link: String) {
+        Logger.i(TAG, "navigate to spotify link: $link")
         val wv = webView ?: run {
             pendingLink = link
             return
@@ -1440,9 +1479,11 @@ class MainActivity : ComponentActivity() {
             target.host == "open.spotify.com" &&
             path.length > 1
         if (!canSpa) {
+            Logger.d(TAG, "link needs a full load (spa=false)")
             wv.loadUrl(link)
             return
         }
+        Logger.d(TAG, "spa navigation to $path")
         val js = """
             (function() {
                 try {
@@ -1473,11 +1514,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        Logger.i(TAG, "activity destroyed, tearing down webview")
         cancelSleepTimer()
-        pipVideoTimeout.removeCallbacksAndMessages(null)
         pipVideoView = null
         pipVideoCallback = null
-        pipVideoPending = false
+        pipVideoActive.value = false
         hidePipOverlay()
         webView?.let {
             it.stopLoading()
@@ -1495,3 +1536,4 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 }
+

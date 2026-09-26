@@ -5,7 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
-import android.util.Log
+import com.project.lol.util.Logger
 import java.io.File
 
 /**
@@ -25,7 +25,7 @@ object DownloadFolder {
         )
         true
     }.getOrElse {
-        Log.w(TAG, "downloadFolder: persist failed for $treeUri: ${it.message}")
+        Logger.w(TAG, "downloadFolder: persist failed for $treeUri: ${it.message}")
         false
     }
 
@@ -72,7 +72,7 @@ object DownloadFolder {
         val target = runCatching {
             DocumentsContract.createDocument(resolver, documentUri(treeUri), mime, displayName)
         }.getOrElse {
-            Log.w(TAG, "downloadFolder: create failed for $displayName: ${it.message}")
+            Logger.w(TAG, "downloadFolder: create failed for $displayName: ${it.message}")
             return null
         } ?: return null
 
@@ -82,7 +82,7 @@ object DownloadFolder {
             } ?: throw IllegalStateException("openOutputStream returned null")
             target
         }.getOrElse {
-            Log.w(TAG, "downloadFolder: write failed for $displayName: ${it.message}")
+            Logger.w(TAG, "downloadFolder: write failed for $displayName: ${it.message}")
             runCatching { DocumentsContract.deleteDocument(resolver, target) }
             null
         }
@@ -121,7 +121,7 @@ object DownloadFolder {
                 }
             }
         }.onFailure {
-            Log.w(TAG, "downloadFolder: listing failed for $treeUri: ${it.message}")
+            Logger.w(TAG, "downloadFolder: listing failed for $treeUri: ${it.message}")
         }
         return entries
     }

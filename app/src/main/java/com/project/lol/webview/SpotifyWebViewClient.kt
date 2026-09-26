@@ -1,7 +1,7 @@
 package com.project.lol.webview
 
 import android.graphics.Bitmap
-import android.util.Log
+import com.project.lol.util.Logger
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
@@ -26,25 +26,33 @@ class SpotifyWebViewClient(
     private var currentWebView: WebView? = null
     private var prefsListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     private var boundPrefs: android.content.SharedPreferences? = null
+    private var pageStartedAt = 0L
 
     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
         super.doUpdateVisitedHistory(view, url, isReload)
-        onNavStateChanged?.invoke(view?.canGoBack() == true)
+        val canGoBack = view?.canGoBack() == true
+        Logger.d(TAG, "history: $url reload=$isReload canGoBack=$canGoBack")
+        onNavStateChanged?.invoke(canGoBack)
     }
 
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         if (view == null || url == null) return
 
+        val elapsed = if (pageStartedAt > 0) System.currentTimeMillis() - pageStartedAt else -1
+        pageStartedAt = 0
         currentWebView = view
         registerPrefsListener(view)
+        Logger.i(TAG, "page finished in ${elapsed}ms: $url")
 
         if (url.startsWith("https://www.facebook.com/privacy/consent/gdp/")) {
+            Logger.s(TAG, "route: facebook gdpr bypass")
             onPageFinishedClean(view, FbGdprBypass.CONTENT)
             return
         }
 
         if (url.endsWith("/login")) {
+            Logger.s(TAG, "route: classic login button")
             onPageFinishedClean(view, ClassicLoginButton.CONTENT)
         }
 
@@ -52,16 +60,21 @@ class SpotifyWebViewClient(
             .getBoolean("LoggedIn", false)
 
         if (!loggedIn) {
+            Logger.i(TAG, "not logged in, arming login detection")
             onPageFinishedClean(view, LoginDetection.CONTENT)
             return
         }
+
+        Logger.s(TAG, "logged in, injecting player control in 500ms")
 
         view.postDelayed({
             injectPlayerControl(view)
         }, 500)
 
         view.evaluateJavascript(LogoutCheck.CONTENT) { result ->
+            Logger.d(TAG, "logout check: $result")
             if (result == "\"out\"") {
+                Logger.w(TAG, "session expired, back to login")
                 view.context.getSharedPreferences("spotilol_prefs", 0)
                     .edit().putBoolean("LoggedIn", false).apply()
                 view.loadUrl("https://accounts.spotify.com/login")
@@ -71,6 +84,7 @@ class SpotifyWebViewClient(
 
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
+        pageStartedAt = System.currentTimeMillis()
         val prefs = view?.context?.getSharedPreferences("spotilol_prefs", 0)
 
         val useProxy = prefs?.getString("ConnectionMode", "normal") == "proxy"
@@ -78,7 +92,15 @@ class SpotifyWebViewClient(
         val blockSW = prefs?.getBoolean("BlockServiceWorker", true) ?: true
         val hideEmptyPlayer = prefs?.getBoolean("HideEmptyPlayer", false) ?: false
         val playlistSort = prefs?.getBoolean("PlaylistSortEnabled", true) ?: true
+        val showScrollbar = prefs?.getBoolean("ShowScrollbar", true) ?: true
 
+        Logger.i(
+            TAG,
+            "page started: $url proxy=$useProxy powerSave=$powerSave blockSW=$blockSW " +
+                "hideEmpty=$hideEmptyPlayer playlistSort=$playlistSort scrollbar=$showScrollbar"
+        )
+
+        view?.evaluateJavascript("window.__splShowScrollbar=$showScrollbar;", null)
         view?.evaluateJavascript("window.__spotilolUseProxy=$useProxy;", null)
         view?.evaluateJavascript("window.__splPowerSavePref=$powerSave;", null)
         view?.evaluateJavascript("window.__splHideEmpty=$hideEmptyPlayer;", null)
@@ -102,7 +124,7 @@ class SpotifyWebViewClient(
     }
 
     override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
-        Log.w(TAG, "Renderer process gone: crashed=${detail?.didCrash()}")
+        Logger.e(TAG, "renderer process gone: crashed=${detail?.didCrash()}")
         view?.let {
             it.stopLoading()
             it.destroy()
@@ -120,6 +142,7 @@ class SpotifyWebViewClient(
         if (request?.isForMainFrame != true) return
         val code = try { error?.errorCode ?: -1 } catch (_: Exception) { -1 }
         val desc = try { error?.description?.toString() ?: "" } catch (_: Exception) { "" }
+        Logger.e(TAG, "main frame error $code ($desc) ${request.url} method=${request.method}")
         onWebViewError?.invoke(code, desc)
     }
 
@@ -131,6 +154,7 @@ class SpotifyWebViewClient(
         super.onReceivedHttpError(view, request, errorResponse)
         if (request?.isForMainFrame != true) return
         val status = try { errorResponse?.statusCode ?: 0 } catch (_: Exception) { 0 }
+        Logger.e(TAG, "main frame http $status ${request.url}")
         if (status >= 400) {
             onWebViewError?.invoke(status, "HTTP $status")
         }
@@ -239,11 +263,19 @@ class SpotifyWebViewClient(
         val customCss = prefs.getString("CustomCss", "") ?: ""
         val playerMode = prefs.getString("PlayerMode", "spotilol") ?: "spotilol"
         val useProxy = prefs.getString("ConnectionMode", "normal") == "proxy"
-        val debugOverlay = prefs.getBoolean("DebugOverlay", false)
+        val debugOverlay = Logger.isEnabled()
         val takeControl = prefs.getBoolean("TakeControl", true)
         val hideEmptyPlayer = prefs.getBoolean("HideEmptyPlayer", false)
         val playlistSortEnabled = prefs.getBoolean("PlaylistSortEnabled", true)
+        val showScrollbar = prefs.getBoolean("ShowScrollbar", true)
         val lyricsStyle = prefs.getString("LyricsStyle", LyricsTheme.DEFAULT_STYLE) ?: LyricsTheme.DEFAULT_STYLE
+
+        Logger.s(
+            TAG,
+            "inject: engine=$playerMode autoPlay=$autoPlayMode closeNp=$closeNowPlay amoled=$amoledEnabled " +
+                "proxy=$useProxy logging=$debugOverlay takeControl=$takeControl sort=$playlistSortEnabled " +
+                "scrollbar=$showScrollbar css=${customCss.length}chars lyrics=$lyricsStyle"
+        )
 
         val js = buildString {
             append("window.autoPlayMode='$autoPlayMode';\n")
@@ -252,6 +284,7 @@ class SpotifyWebViewClient(
             append("window.__splTakeControl=$takeControl;\n")
             append("window.__splHideEmpty=$hideEmptyPlayer;\n")
             append("window.__splPlaylistSortEnabled=$playlistSortEnabled;\n")
+            append("window.__splShowScrollbar=$showScrollbar;\n")
             if (debugOverlay) {
                 append(DevLogPrelude.js())
                 append("\n")
@@ -309,6 +342,7 @@ class SpotifyWebViewClient(
         } else {
             view.evaluateJavascript(cleanJs, null)
         }
+        Logger.d(TAG, "injected ${cleanJs.length} bytes (engine=$playerMode)")
     }
 
     private fun registerPrefsListener(view: WebView) {
@@ -322,6 +356,7 @@ class SpotifyWebViewClient(
 
         prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             val wv = currentWebView ?: return@OnSharedPreferenceChangeListener
+            Logger.d(TAG, "pref changed: $key")
             when (key) {
                 "PlayerMode" ->
                     switchPlayerMode(wv, prefs.getString("PlayerMode", "spotilol") ?: "spotilol")
@@ -370,6 +405,7 @@ class SpotifyWebViewClient(
     }
 
     private fun switchPlayerMode(view: WebView, mode: String) {
+        Logger.i(TAG, "switch player engine: $mode")
         if (mode == "original") {
             val js = """
                 (function(){
@@ -404,7 +440,7 @@ class SpotifyWebViewClient(
     }
 
     companion object {
-        private const val TAG = "SpotifyWebViewClient"
+        private const val TAG = "wv"
         private const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
 

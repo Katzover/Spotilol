@@ -2,7 +2,9 @@ package com.project.lol.ui.screens
 
 import android.content.ClipData
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.app.Activity
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
@@ -112,6 +114,7 @@ import com.project.lol.ui.theme.SpotifyTheme
 import com.project.lol.util.BuildInfo
 import com.project.lol.util.GitHubApi
 import com.project.lol.util.GitHubRelease
+import com.project.lol.util.LocaleHelper
 import com.project.lol.util.LogEntry
 import com.project.lol.util.LogFilter
 import com.project.lol.util.LogLevel
@@ -187,6 +190,15 @@ private fun formatHex(color: Color): String {
 }
 private const val DEBUG_UNLOCK_TAPS = 5
 
+private fun findActivity(context: Context): Activity? {
+    var current: Context? = context
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
+
 private enum class SettingsTab(@StringRes val labelRes: Int) {
     Appearance(R.string.settings_tab_appearance),
     Playback(R.string.settings_tab_playback),
@@ -247,6 +259,9 @@ fun SettingsContent(
 
     val context = LocalContext.current
     var profiles by remember { mutableStateOf(ProfileManager.getProfiles(context)) }
+
+    var appLanguage by remember { mutableStateOf(LocaleHelper.language(context)) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     var showConnectionModeDialog by remember { mutableStateOf(false) }
     var showSaveAccountDialog by remember { mutableStateOf(false) }
@@ -378,29 +393,45 @@ fun SettingsContent(
                     title = stringResource(R.string.settings_section_appearance),
                     icon = TablerIcons.Palette
                 ) {
-                    val guiLabel = when (guiMode) {
-                        "csshack" -> stringResource(R.string.settings_gui_mode_css_js)
-                        "bigwindow" -> stringResource(R.string.settings_gui_mode_wide)
-                        "none" -> stringResource(R.string.settings_gui_mode_none)
-                        else -> stringResource(R.string.settings_gui_mode_css_js)
+                    val languageLabel = when (appLanguage) {
+                        LocaleHelper.HEBREW -> stringResource(R.string.settings_language_hebrew)
+                        LocaleHelper.ENGLISH -> stringResource(R.string.settings_language_english)
+                        else -> stringResource(R.string.settings_language_system)
                     }
                     SettingTile(
-                        title = stringResource(R.string.settings_gui_hack_mode),
-                        subtitle = guiLabel,
-                        icon = TablerIcons.Palette,
-                        onClick = { showGuiModeDialog = true }
+                        title = stringResource(R.string.settings_language),
+                        subtitle = languageLabel,
+                        icon = TablerIcons.Language,
+                        onClick = { showLanguageDialog = true }
                     )
 
                     HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
 
-                    SettingTile(
-                        title = stringResource(R.string.settings_custom_css),
-                        subtitle = if (customCss.isBlank()) stringResource(R.string.settings_custom_css_none) else customCss,
-                        icon = TablerIcons.Code,
-                        onClick = { showCustomCssDialog = true }
-                    )
+                    if (debugUnlocked) {
+                        val guiLabel = when (guiMode) {
+                            "csshack" -> stringResource(R.string.settings_gui_mode_css_js)
+                            "bigwindow" -> stringResource(R.string.settings_gui_mode_wide)
+                            "none" -> stringResource(R.string.settings_gui_mode_none)
+                            else -> stringResource(R.string.settings_gui_mode_css_js)
+                        }
+                        SettingTile(
+                            title = stringResource(R.string.settings_gui_hack_mode),
+                            subtitle = guiLabel,
+                            icon = TablerIcons.Palette,
+                            onClick = { showGuiModeDialog = true }
+                        )
 
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+                        HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+
+                        SettingTile(
+                            title = stringResource(R.string.settings_custom_css),
+                            subtitle = if (customCss.isBlank()) stringResource(R.string.settings_custom_css_none) else customCss,
+                            icon = TablerIcons.Code,
+                            onClick = { showCustomCssDialog = true }
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+                    }
 
                     SettingSwitchTile(
                         title = stringResource(R.string.settings_material_you),
@@ -762,21 +793,23 @@ fun SettingsContent(
             }
 
             if (settingsTab == SettingsTab.Advanced) {
-                SettingSectionCard(
-                    title = stringResource(R.string.settings_section_connection_mode),
-                    icon = TablerIcons.Shield
-                ) {
-                    val modeLabel = if (connectionMode == "proxy") {
-                        stringResource(R.string.settings_connection_proxy)
-                    } else {
-                        stringResource(R.string.settings_connection_normal)
+                if (debugUnlocked || connectionMode == "proxy") {
+                    SettingSectionCard(
+                        title = stringResource(R.string.settings_section_connection_mode),
+                        icon = TablerIcons.Shield
+                    ) {
+                        val modeLabel = if (connectionMode == "proxy") {
+                            stringResource(R.string.settings_connection_proxy)
+                        } else {
+                            stringResource(R.string.settings_connection_normal)
+                        }
+                        SettingTile(
+                            title = stringResource(R.string.settings_connection_mode),
+                            subtitle = stringResource(R.string.settings_connection_mode_subtitle, modeLabel),
+                            icon = TablerIcons.Shield,
+                            onClick = { showConnectionModeDialog = true }
+                        )
                     }
-                    SettingTile(
-                        title = stringResource(R.string.settings_connection_mode),
-                        subtitle = stringResource(R.string.settings_connection_mode_subtitle, modeLabel),
-                        icon = TablerIcons.Shield,
-                        onClick = { showConnectionModeDialog = true }
-                    )
                 }
 
                 SettingSectionCard(
@@ -932,6 +965,27 @@ fun SettingsContent(
 
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (showLanguageDialog) {
+        SingleChoiceDialog(
+            title = stringResource(R.string.settings_language),
+            options = listOf(
+                LocaleHelper.SYSTEM to stringResource(R.string.settings_language_system),
+                LocaleHelper.ENGLISH to stringResource(R.string.settings_language_english),
+                LocaleHelper.HEBREW to stringResource(R.string.settings_language_hebrew)
+            ),
+            selected = appLanguage,
+            onSelect = { value ->
+                appLanguage = value
+                if (value != LocaleHelper.language(context)) {
+                    prefs.edit().putBoolean("ReopenSettings", true).apply()
+                    LocaleHelper.setLanguage(context, value)
+                    findActivity(context)?.recreate()
+                }
+            },
+            onDismiss = { showLanguageDialog = false }
+        )
     }
 
     if (showPaletteDialog) {

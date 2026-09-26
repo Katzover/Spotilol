@@ -22,6 +22,10 @@ import com.project.lol.ui.theme.SpotifyTheme
 
 class OfflineActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
+
     private lateinit var prefs: SharedPreferences
 
     private val materialYouState = mutableStateOf(false)

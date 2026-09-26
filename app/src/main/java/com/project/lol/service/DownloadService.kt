@@ -21,6 +21,11 @@ import java.io.File
 
 class DownloadService : Service() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
+
+
     companion object {
         private const val CHANNEL_ID = "spotilol_downloads"
         private const val NOTIF_ID = 3

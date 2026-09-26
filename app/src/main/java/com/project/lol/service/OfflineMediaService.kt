@@ -31,6 +31,11 @@ import kotlin.math.min
 
 class OfflineMediaService : Service() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
+
+
     companion object {
         private const val TAG = "OfflineMediaSvc"
         private const val CHANNEL_ID = "spotilol_offline_playback"

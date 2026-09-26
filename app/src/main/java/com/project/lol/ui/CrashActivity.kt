@@ -61,6 +61,11 @@ import kotlinx.coroutines.launch
 
 class CrashActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).apply {

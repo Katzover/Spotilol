@@ -12,7 +12,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -83,7 +82,6 @@ import compose.icons.TablerIcons
 import compose.icons.tablericons.Bell
 import compose.icons.tablericons.Bluetooth
 import compose.icons.tablericons.Language
-import compose.icons.tablericons.ShieldLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -92,6 +90,10 @@ import kotlinx.coroutines.withContext
 private val MonochromeAccent = Color(0xFFE0E0E0)
 
 class SplashActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -123,7 +125,6 @@ class SplashActivity : ComponentActivity() {
             var intro by remember { mutableStateOf(true) }
             var onboarding by remember { mutableStateOf(false) }
             var onboardingStep by remember { mutableIntStateOf(0) }
-            var selectedMode by remember { mutableStateOf("normal") }
             var certInstalled by remember { mutableStateOf(false) }
             var checkDone by remember { mutableStateOf(false) }
             var checking by remember { mutableStateOf(false) }
@@ -212,7 +213,6 @@ class SplashActivity : ComponentActivity() {
                                 translationY = (1f - onboardingAppear.value) * 28.dp.toPx()
                             },
                             step = onboardingStep,
-                            mode = selectedMode,
                             onAccept = {
                                 val required = requiredPermissions()
                                 if (required.isEmpty()) {
@@ -221,13 +221,12 @@ class SplashActivity : ComponentActivity() {
                                     permissionLauncher.launch(required.toTypedArray())
                                 }
                             },
-                            onMode = { selectedMode = it },
                             onGo = {
                                 if (!onboardingLeaving) {
                                     onboardingLeaving = true
                                     prefs.edit()
                                         .putBoolean("OnboardingDone", true)
-                                        .putString("ConnectionMode", selectedMode)
+                                        .putString("ConnectionMode", "normal")
                                         .apply()
                                     scope.launch {
                                         onboardingAppear.animateTo(0f, tween(200, easing = LinearEasing))
@@ -485,9 +484,7 @@ private fun Step(number: Int, text: String) {
 private fun OnboardingScreen(
     modifier: Modifier = Modifier,
     step: Int,
-    mode: String,
     onAccept: () -> Unit,
-    onMode: (String) -> Unit,
     onGo: () -> Unit
 ) {
     Box(
@@ -513,9 +510,7 @@ private fun OnboardingScreen(
         ) { current ->
             OnboardingPhase(
                 step = current,
-                mode = mode,
                 onAccept = onAccept,
-                onMode = onMode,
                 onGo = onGo
             )
         }
@@ -525,9 +520,7 @@ private fun OnboardingScreen(
 @Composable
 private fun OnboardingPhase(
     step: Int,
-    mode: String,
     onAccept: () -> Unit,
-    onMode: (String) -> Unit,
     onGo: () -> Unit
 ) {
     Column(
@@ -546,7 +539,7 @@ private fun OnboardingPhase(
 
         Text(
             text = stringResource(
-                if (step == 0) R.string.splash_onboarding_welcome else R.string.splash_onboarding_mode_title
+                if (step == 0) R.string.splash_onboarding_welcome else R.string.splash_onboarding_ready_title
             ),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold,
@@ -558,7 +551,7 @@ private fun OnboardingPhase(
         Text(
             text = stringResource(
                 if (step == 0) R.string.splash_onboarding_permissions_subtitle
-                else R.string.splash_onboarding_mode_subtitle
+                else R.string.splash_onboarding_ready_desc
             ),
             style = MaterialTheme.typography.bodySmall,
             color = Color.White.copy(alpha = 0.45f),
@@ -589,24 +582,11 @@ private fun OnboardingPhase(
                 onClick = onAccept
             )
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OnboardingMode(
-                    modifier = Modifier.weight(1f),
-                    icon = TablerIcons.Language,
-                    title = stringResource(R.string.splash_onboarding_mode_normal_title),
-                    description = stringResource(R.string.splash_onboarding_mode_normal_desc),
-                    selected = mode == "normal",
-                    onClick = { onMode("normal") }
-                )
-                OnboardingMode(
-                    modifier = Modifier.weight(1f),
-                    icon = TablerIcons.ShieldLock,
-                    title = stringResource(R.string.splash_onboarding_mode_cert_title),
-                    description = stringResource(R.string.splash_onboarding_mode_cert_desc),
-                    selected = mode == "proxy",
-                    onClick = { onMode("proxy") }
-                )
-            }
+            OnboardingItem(
+                icon = TablerIcons.Language,
+                title = stringResource(R.string.splash_onboarding_ready_item_title),
+                description = stringResource(R.string.splash_onboarding_ready_item_desc)
+            )
             Spacer(Modifier.height(26.dp))
             OnboardingAction(
                 label = stringResource(R.string.splash_onboarding_go),
@@ -650,51 +630,6 @@ private fun OnboardingItem(icon: ImageVector, title: String, description: String
                 color = Color.White
             )
             Spacer(Modifier.height(2.dp))
-            Text(
-                text = description,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.45f),
-                lineHeight = 15.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun OnboardingMode(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    title: String,
-    description: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-        else Color.White.copy(alpha = 0.06f),
-        border = BorderStroke(
-            1.5.dp,
-            if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.10f)
-        )
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (selected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            Spacer(Modifier.height(4.dp))
             Text(
                 text = description,
                 style = MaterialTheme.typography.labelSmall,

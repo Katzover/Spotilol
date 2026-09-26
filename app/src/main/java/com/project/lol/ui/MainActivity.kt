@@ -180,6 +180,10 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var prefs: SharedPreferences
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
+
     private val analytics: FirebaseAnalytics by lazy { FirebaseAnalytics.getInstance(this) }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -260,7 +264,11 @@ class MainActivity : ComponentActivity() {
             val blockServiceWorker = blockServiceWorkerState.value
             val pipFilling = pipVideoActive.value
 
-            var settingsDialogOpen by remember { mutableStateOf(false) }
+            var settingsDialogOpen by remember {
+                val reopen = prefs.getBoolean("ReopenSettings", false)
+                if (reopen) prefs.edit().remove("ReopenSettings").apply()
+                mutableStateOf(reopen)
+            }
             var showMiniMenu by remember { mutableStateOf(false) }
             val versionName = remember {
                 runCatching { packageManager.getPackageInfo(packageName, 0).versionName }

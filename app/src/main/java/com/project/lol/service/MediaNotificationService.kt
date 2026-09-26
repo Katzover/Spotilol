@@ -54,6 +54,11 @@ import kotlin.math.min
 
 class MediaNotificationService : MediaBrowserServiceCompat() {
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.project.lol.util.LocaleHelper.wrap(newBase))
+    }
+
+
     companion object {
         private const val TAG = "MediaNotifService"
         private const val CHANNEL_ID = "spotilol_media_playback"

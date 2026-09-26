@@ -149,7 +149,11 @@ fun OfflineScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    var settingsDialogOpen by remember { mutableStateOf(false) }
+    var settingsDialogOpen by remember {
+        val reopen = prefs.getBoolean("ReopenSettings", false)
+        if (reopen) prefs.edit().remove("ReopenSettings").apply()
+        mutableStateOf(reopen)
+    }
     var showQuickMenu by remember { mutableStateOf(false) }
 
     var songs by remember { mutableStateOf<List<OfflineSong>>(emptyList()) }

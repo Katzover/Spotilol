@@ -280,7 +280,7 @@
     <string name="splash_onboarding_mode_normal_desc">Direct connection, no certificate.</string>
     <string name="splash_onboarding_mode_cert_title">Certificate Mode</string>
     <string name="splash_onboarding_mode_cert_desc">Local proxy, needs the CA installed.</string>
-    <string name="splash_onboarding_go">Go</string>
+    <string name="splash_onboarding_go">Start</string>
     <string name="settings_dialog_title">Settings</string>
     <string name="settings_dialog_version">Spotilol v%1$s · %2$s</string>
     <string name="settings_dialog_close">Close</string>
@@ -346,4 +346,14 @@
     <string name="bridge_reloading">Reloading...</string>
 
     <string name="service_disabled_message">Service is not enabled</string>
+
+    <string name="settings_language">App Language</string>
+    <string name="settings_language_system">Follow phone setting</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_hebrew">עברית (Hebrew)</string>
+
+    <string name="splash_onboarding_ready_title">You are all set</string>
+    <string name="splash_onboarding_ready_desc">Tap Start to open Spotilol.</string>
+    <string name="splash_onboarding_ready_item_title">Everything is ready</string>
+    <string name="splash_onboarding_ready_item_desc">Log in with your Spotify account and enjoy the music.</string>
 </resources>

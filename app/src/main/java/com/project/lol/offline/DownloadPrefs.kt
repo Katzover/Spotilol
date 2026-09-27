@@ -10,7 +10,7 @@ enum class DownloadFormat(val ext: String, val mime: String) {
 
     companion object {
         fun from(value: String?): DownloadFormat =
-            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: M4A
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: MP3
     }
 }
 
@@ -29,7 +29,7 @@ object DownloadPrefs {
 
     @JvmStatic
     fun format(context: Context): DownloadFormat =
-        DownloadFormat.from(prefs(context).getString(KEY_FORMAT, DownloadFormat.M4A.name))
+        DownloadFormat.from(prefs(context).getString(KEY_FORMAT, DownloadFormat.MP3.name))
 
     @JvmStatic
     fun setFormat(context: Context, format: DownloadFormat) {

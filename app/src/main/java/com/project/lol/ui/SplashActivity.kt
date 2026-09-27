@@ -78,6 +78,7 @@ import com.project.lol.R
 import com.project.lol.proxy.LocalProxyManager
 import com.project.lol.ui.theme.SpotifyTheme
 import com.project.lol.util.BuildInfo
+import com.project.lol.util.NetworkMonitor
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Bell
 import compose.icons.tablericons.Bluetooth
@@ -148,10 +149,22 @@ class SplashActivity : ComponentActivity() {
             }
 
             LaunchedEffect(Unit) {
-                if (prefs.getBoolean("OfflineMode", false)) {
+                fun openOffline() {
                     startActivity(Intent(this@SplashActivity, OfflineActivity::class.java))
                     overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                     finish()
+                }
+
+                if (prefs.getBoolean("OfflineMode", false)) {
+                    openOffline()
+                    return@LaunchedEffect
+                }
+                if (!NetworkMonitor.isOnlineNow(this@SplashActivity)) {
+                    prefs.edit()
+                        .putBoolean("OfflineMode", true)
+                        .putBoolean("OfflineAuto", true)
+                        .apply()
+                    openOffline()
                     return@LaunchedEffect
                 }
                 delay(2000)

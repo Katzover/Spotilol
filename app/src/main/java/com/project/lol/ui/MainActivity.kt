@@ -113,7 +113,9 @@ import com.project.lol.ui.components.SettingsDialog
 import com.project.lol.ui.theme.SpotifyTheme
 import com.project.lol.util.BuildInfo
 import com.project.lol.util.Logger
+import com.project.lol.util.NetworkMonitor
 import com.project.lol.util.UpdateChecker
+import kotlinx.coroutines.delay
 import com.project.lol.webview.SpotifyWebChromeClient
 import com.project.lol.webview.SpotifyWebViewClient
 import com.project.lol.webview.helpers.DevLogPrelude
@@ -251,6 +253,18 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            LaunchedEffect(Unit) {
+                NetworkMonitor.online.collect { online ->
+                    if (online) return@collect
+                    delay(4000)
+                    if (NetworkMonitor.online.value) return@collect
+                    if (isInPictureInPictureMode) return@collect
+                    if (prefs.getBoolean("OfflineMode", false)) return@collect
+                    Logger.i(TAG, "no internet for 4s -> offline mode")
+                    switchOfflineMode(true, auto = true)
+                }
+            }
+
             val serviceEnabled = serviceEnabledState.value
             val materialYou = materialYouState.value
             val amoled = amoledState.value
@@ -614,12 +628,6 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
-
-                        if (hideTopBar) {
-                            QuickAccessOverlay(
-                                onOpenSettings = { settingsDialogOpen = true }
-                            )
-                        }
                     }
                 }
             }
@@ -665,9 +673,12 @@ class MainActivity : ComponentActivity() {
         finish()
     }
 
-    private fun switchOfflineMode(enabled: Boolean) {
+    private fun switchOfflineMode(enabled: Boolean, auto: Boolean = false) {
         Logger.i(TAG, "offline mode -> $enabled, restarting app")
-        prefs.edit().putBoolean("OfflineMode", enabled).apply()
+        prefs.edit()
+            .putBoolean("OfflineMode", enabled)
+            .putBoolean("OfflineAuto", auto)
+            .apply()
         stopService(Intent(this, MediaNotificationService::class.java))
         val intent = Intent(this, SplashActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -911,30 +922,6 @@ class MainActivity : ComponentActivity() {
                 },
                 dismissButton = {}
             )
-        }
-    }
-
-    @Composable
-    private fun QuickAccessOverlay(
-        onOpenSettings: () -> Unit
-    ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .size(44.dp)
-                    .shadow(6.dp, CircleShape)
-                    .clip(CircleShape)
-                    .clickable(onClick = onOpenSettings),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_launcher_playstore),
-                    contentDescription = stringResource(R.string.main_settings_content_description),
-                    tint = Color.Unspecified,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
         }
     }
 

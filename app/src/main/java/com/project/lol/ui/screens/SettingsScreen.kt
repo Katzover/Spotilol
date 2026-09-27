@@ -475,32 +475,6 @@ fun SettingsContent(
                     HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
 
                     SettingSwitchTile(
-                        title = stringResource(R.string.settings_hide_top_bar),
-                        subtitle = stringResource(R.string.settings_hide_top_bar_subtitle),
-                        icon = TablerIcons.EyeOff,
-                        checked = hideTopBar,
-                        onCheckedChange = { enabled ->
-                            onHideTopBarChange(enabled)
-                            prefs.edit().putBoolean("HideTopBar", enabled).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_landscape_mode),
-                        subtitle = stringResource(R.string.settings_landscape_mode_subtitle),
-                        icon = TablerIcons.RotateClockwise2,
-                        checked = landscapeMode,
-                        onCheckedChange = { enabled ->
-                            onLandscapeModeChange(enabled)
-                            prefs.edit().putBoolean("LandscapeMode", enabled).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
                         title = stringResource(R.string.settings_keep_screen_on),
                         subtitle = stringResource(R.string.settings_keep_screen_on_subtitle),
                         icon = TablerIcons.BrightnessUp,
@@ -511,22 +485,6 @@ fun SettingsContent(
                         }
                     )
 
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_playlist_scrollbar),
-                        subtitle = stringResource(R.string.settings_playlist_scrollbar_subtitle),
-                        icon = TablerIcons.ArrowsUpDown,
-                        checked = showScrollbar,
-                        onCheckedChange = { enabled ->
-                            showScrollbar = enabled
-                            prefs.edit().putBoolean("ShowScrollbar", enabled).apply()
-                            MediaNotificationService.webView?.evaluateJavascript(
-                                "if(window.splScrollbar){window.splScrollbar($enabled)}else{window.__splShowScrollbar=$enabled}",
-                                null
-                            )
-                        }
-                    )
                 }
             }
 
@@ -535,61 +493,6 @@ fun SettingsContent(
                     title = stringResource(R.string.settings_section_player),
                     icon = TablerIcons.PlayerPlay
                 ) {
-                    val autoplayLabel = when (autoplayMode) {
-                        "disabled" -> stringResource(R.string.settings_autoplay_disabled)
-                        "onetime" -> stringResource(R.string.settings_autoplay_onetime)
-                        "permanent" -> stringResource(R.string.settings_autoplay_permanent)
-                        else -> stringResource(R.string.settings_autoplay_onetime)
-                    }
-                    SettingTile(
-                        title = stringResource(R.string.settings_autoplay_mode),
-                        subtitle = autoplayLabel,
-                        icon = TablerIcons.PlayerPlay,
-                        onClick = { showAutoPlayDialog = true }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    val playerModeLabel = when (playerMode) {
-                        "spotilol" -> stringResource(R.string.settings_player_spotilol)
-                        "original" -> stringResource(R.string.settings_player_original)
-                        else -> stringResource(R.string.settings_player_spotilol)
-                    }
-                    SettingTile(
-                        title = stringResource(R.string.settings_player_mode),
-                        subtitle = playerModeLabel,
-                        icon = TablerIcons.PlayerPlay,
-                        onClick = { showPlayerModeDialog = true }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_hide_empty_player),
-                        subtitle = stringResource(R.string.settings_hide_empty_player_subtitle),
-                        icon = TablerIcons.EyeOff,
-                        checked = hideEmptyPlayer,
-                        onCheckedChange = {
-                            hideEmptyPlayer = it
-                            prefs.edit().putBoolean("HideEmptyPlayer", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_playlist_sort),
-                        subtitle = stringResource(R.string.settings_playlist_sort_subtitle),
-                        icon = TablerIcons.ArrowsSort,
-                        checked = playlistSortEnabled,
-                        onCheckedChange = {
-                            playlistSortEnabled = it
-                            prefs.edit().putBoolean("PlaylistSortEnabled", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
                     val lyricsStyleLabel = stringResource(
                         LyricsTheme.STYLE_OPTIONS.firstOrNull { it.first == lyricsStyle }?.second
                             ?: R.string.settings_lyrics_style_fullscreen
@@ -601,88 +504,8 @@ fun SettingsContent(
                         onClick = { showLyricsStyleDialog = true }
                     )
 
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_take_control),
-                        subtitle = stringResource(R.string.settings_take_control_subtitle),
-                        icon = TablerIcons.Click,
-                        checked = takeControl,
-                        onCheckedChange = {
-                            takeControl = it
-                            prefs.edit().putBoolean("TakeControl", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_android_auto),
-                        subtitle = stringResource(R.string.settings_android_auto_subtitle),
-                        icon = TablerIcons.Car,
-                        checked = andAuto,
-                        onCheckedChange = {
-                            andAuto = it
-                            prefs.edit().putBoolean("AndAuto", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_close_now_playing),
-                        subtitle = stringResource(R.string.settings_close_now_playing_subtitle),
-                        icon = TablerIcons.ArrowsMinimize,
-                        checked = closeNowPlay,
-                        onCheckedChange = {
-                            closeNowPlay = it
-                            prefs.edit().putBoolean("CloseNowPlay", it).apply()
-                        }
-                    )
                 }
 
-                SettingSectionCard(
-                    title = stringResource(R.string.settings_section_bluetooth),
-                    icon = TablerIcons.DeviceMobile,
-                    info = stringResource(R.string.settings_bluetooth_info)
-                ) {
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_pause_on_disconnect),
-                        subtitle = stringResource(R.string.settings_pause_on_disconnect_subtitle),
-                        icon = TablerIcons.DeviceMobile,
-                        checked = btAutoPause,
-                        onCheckedChange = {
-                            btAutoPause = it
-                            prefs.edit().putBoolean("BtAutoPause", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_resume_on_connect),
-                        subtitle = stringResource(R.string.settings_resume_on_connect_subtitle),
-                        icon = TablerIcons.DeviceMobile,
-                        checked = btAutoResume,
-                        onCheckedChange = {
-                            btAutoResume = it
-                            prefs.edit().putBoolean("BtAutoResume", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_resume_on_headphone_plug),
-                        subtitle = stringResource(R.string.settings_resume_on_headphone_plug_subtitle),
-                        icon = TablerIcons.DeviceMobile,
-                        checked = hpAutoResume,
-                        onCheckedChange = {
-                            hpAutoResume = it
-                            prefs.edit().putBoolean("HpAutoResume", it).apply()
-                        }
-                    )
-                }
             }
 
             if (settingsTab == SettingsTab.Content) {
@@ -705,18 +528,6 @@ fun SettingsContent(
                         }
                     )
 
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_block_service_worker),
-                        subtitle = stringResource(R.string.settings_block_service_worker_subtitle),
-                        icon = TablerIcons.Shield,
-                        checked = blockSW,
-                        onCheckedChange = { enabled ->
-                            blockSW = enabled
-                            onBlockServiceWorkerChange(enabled)
-                        }
-                    )
                 }
 
                 SettingSectionCard(
@@ -739,18 +550,6 @@ fun SettingsContent(
                         onClick = { showFolderDialog = true }
                     )
 
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_write_tags),
-                        subtitle = stringResource(R.string.settings_write_tags_subtitle),
-                        icon = TablerIcons.Playlist,
-                        checked = dlTags,
-                        onCheckedChange = { enabled ->
-                            dlTags = enabled
-                            DownloadPrefs.setWriteTags(context, enabled)
-                        }
-                    )
                 }
 
                 SettingSectionCard(
@@ -816,19 +615,6 @@ fun SettingsContent(
                     title = stringResource(R.string.settings_section_system),
                     icon = TablerIcons.Power
                 ) {
-                    SettingSwitchTile(
-                        title = stringResource(R.string.settings_swipe_to_stop),
-                        subtitle = stringResource(R.string.settings_swipe_to_stop_subtitle),
-                        icon = TablerIcons.Power,
-                        checked = swipeStop,
-                        onCheckedChange = {
-                            swipeStop = it
-                            prefs.edit().putBoolean("SwipeStop", it).apply()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(start = 44.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
                     SettingTile(
                         title = stringResource(R.string.settings_empty_cache),
                         subtitle = stringResource(R.string.settings_empty_cache_subtitle),

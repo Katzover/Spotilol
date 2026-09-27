@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
@@ -19,6 +20,8 @@ import com.project.lol.R
 import com.project.lol.profile.ProfileManager
 import com.project.lol.ui.screens.OfflineScreen
 import com.project.lol.ui.theme.SpotifyTheme
+import com.project.lol.util.NetworkMonitor
+import kotlinx.coroutines.delay
 
 class OfflineActivity : ComponentActivity() {
 
@@ -56,6 +59,16 @@ class OfflineActivity : ComponentActivity() {
         applyKeepScreenOn()
 
         setContent {
+            LaunchedEffect(Unit) {
+                NetworkMonitor.online.collect { online ->
+                    if (!online) return@collect
+                    delay(5000)
+                    if (!NetworkMonitor.online.value) return@collect
+                    if (!prefs.getBoolean("OfflineAuto", false)) return@collect
+                    exitOfflineMode()
+                }
+            }
+
             SpotifyTheme(
                 useDynamicColor = materialYouState.value,
                 amoled = amoledState.value,
@@ -106,7 +119,10 @@ class OfflineActivity : ComponentActivity() {
                         restartToSplash()
                     },
                     onOfflineModeChange = { enabled ->
-                        prefs.edit().putBoolean("OfflineMode", enabled).apply()
+                        prefs.edit()
+                            .putBoolean("OfflineMode", enabled)
+                            .putBoolean("OfflineAuto", false)
+                            .apply()
                         restartToSplash()
                     },
                     onSaveProfile = { name, cookies ->
@@ -179,7 +195,10 @@ class OfflineActivity : ComponentActivity() {
     }
 
     private fun exitOfflineMode() {
-        prefs.edit().putBoolean("OfflineMode", false).apply()
+        prefs.edit()
+            .putBoolean("OfflineMode", false)
+            .putBoolean("OfflineAuto", false)
+            .apply()
         restartToSplash()
     }
 }

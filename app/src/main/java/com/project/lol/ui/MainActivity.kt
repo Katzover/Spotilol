@@ -16,8 +16,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
-import android.os.Handler
-import android.os.Looper
 import android.util.Rational
 import android.widget.Toast
 import android.view.LayoutInflater
@@ -64,6 +62,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -170,6 +169,7 @@ class MainActivity : ComponentActivity() {
     private val paletteSeedState = mutableStateOf<String?>(null)
 
     private val showSleepTimerDialog = mutableStateOf(false)
+    private val updateDialog = mutableStateOf<Pair<String, String>?>(null)
     private val sleepTimerInputText = mutableStateOf("")
     private var sleepTimer: CountDownTimer? = null
     private val sleepTimerRemainingMs = mutableLongStateOf(0L)
@@ -218,13 +218,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val uc = UpdateChecker(this)
-        uc.autoCheck { url ->
-            Toast.makeText(this, getString(R.string.main_update_available), Toast.LENGTH_SHORT).show()
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                } catch (_: Exception) {}
-            }, 2000)
+        uc.autoCheck { url, version ->
+            updateDialog.value = url to version
         }
 
         val loggedIn = prefs.getBoolean("LoggedIn", false)
@@ -253,6 +248,37 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            updateDialog.value?.let { (url, version) ->
+                AlertDialog(
+                    onDismissRequest = { updateDialog.value = null },
+                    title = {
+                        Text(
+                            stringResource(R.string.main_update_available),
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = { Text(stringResource(R.string.update_dialog_message, version)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            updateDialog.value = null
+                            runCatching {
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                        }) {
+                            Text(
+                                stringResource(R.string.update_dialog_download),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { updateDialog.value = null }) {
+                            Text(stringResource(R.string.settings_cancel))
+                        }
+                    }
+                )
+            }
+
             LaunchedEffect(Unit) {
                 NetworkMonitor.online.collect { online ->
                     if (online) return@collect

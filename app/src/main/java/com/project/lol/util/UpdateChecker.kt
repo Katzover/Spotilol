@@ -13,7 +13,7 @@ class UpdateChecker(private val context: Context) {
         private const val CHECK_INTERVAL_MS = 60 * 60 * 1000L
     }
 
-    fun autoCheck(onUpdateAvailable: (String) -> Unit) {
+    fun autoCheck(onUpdateAvailable: (url: String, version: String) -> Unit) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val lastCheck = prefs.getLong(KEY_LAST_CHECK, 0)
         if (System.currentTimeMillis() - lastCheck < CHECK_INTERVAL_MS) {
@@ -42,7 +42,7 @@ class UpdateChecker(private val context: Context) {
                     }
                 }
                 Logger.s(TAG, "update available: $url")
-                onUpdateAvailable(url)
+                onUpdateAvailable(url, "v$latest")
             }
         }
     }

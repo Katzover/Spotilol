@@ -37,4 +37,6 @@ Desktop.ini
 # Logs
 *.log
 
-scripts/
+# Local scratch scripts, but keep the upstream sync helper
+scripts/*
+!scripts/sync-upstream.ps1

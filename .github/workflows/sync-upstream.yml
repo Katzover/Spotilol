@@ -1,0 +1,58 @@
+name: Sync upstream
+
+# Keeps this fork in sync with the original Spotilol (lyssadev/Spotilol).
+# Clean merges automatically open a PR into hebrew-support.
+# Conflicts fail the run with the file list - resolve locally with scripts/sync-upstream.ps1.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 5 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hebrew-support
+          fetch-depth: 0
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          git remote add upstream https://github.com/lyssadev/Spotilol.git 2>/dev/null || true
+          git fetch upstream main
+          BEHIND=$(git rev-list --count HEAD..upstream/main)
+          if [ "$BEHIND" -eq 0 ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date with upstream."
+            exit 0
+          fi
+          echo "Upstream has $BEHIND new commit(s)."
+          if ! git merge --no-ff -m "Sync upstream Spotilol" upstream/main; then
+            echo "::error::Merge conflicts - resolve with scripts/sync-upstream.ps1 (playbook is in its header), then push the merge."
+            git diff --name-only --diff-filter=U
+            git merge --abort
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open pull request
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="sync-upstream-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git push origin "$BRANCH" --force
+          gh pr create --repo "${{ github.repository }}" --base hebrew-support --head "$BRANCH" \
+            --title "Sync upstream Spotilol" \
+            --body "Automatic merge of lyssadev/Spotilol main. Clean merge - review, build (scripts/sync-upstream.ps1 -Build), then merge." \
+            || echo "PR already exists for this sync."

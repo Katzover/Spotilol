@@ -110,6 +110,7 @@ import com.project.lol.offline.DownloadPrefs
 import com.project.lol.profile.ProfileManager
 import com.project.lol.proxy.LocalProxyManager
 import com.project.lol.service.MediaNotificationService
+import com.project.lol.ui.SplashActivity
 import com.project.lol.ui.theme.SpotifyTheme
 import com.project.lol.util.BuildInfo
 import com.project.lol.util.GitHubApi
@@ -197,6 +198,15 @@ private fun findActivity(context: Context): Activity? {
         current = current.baseContext
     }
     return null
+}
+
+/** Full app restart so the new language applies to every activity, service and the application context. */
+private fun restartApp(context: Context) {
+    val intent = Intent(context, SplashActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+    context.startActivity(intent)
+    findActivity(context)?.finish()
 }
 
 private enum class SettingsTab(@StringRes val labelRes: Int) {
@@ -767,7 +777,7 @@ fun SettingsContent(
                 if (value != LocaleHelper.language(context)) {
                     prefs.edit().putBoolean("ReopenSettings", true).apply()
                     LocaleHelper.setLanguage(context, value)
-                    findActivity(context)?.recreate()
+                    restartApp(context)
                 }
             },
             onDismiss = { showLanguageDialog = false }

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.LocaleList
 import java.util.Locale
 
 /**
@@ -27,11 +28,9 @@ object LocaleHelper {
 
     fun setLanguage(context: Context, code: String) {
         prefs(context).edit().putString(KEY_LANGUAGE, code).apply()
-        if (code == SYSTEM) {
-            Locale.setDefault(systemLocale())
-        } else {
-            Locale.setDefault(localeFor(code))
-        }
+        val locale = if (code == SYSTEM) systemLocale() else localeFor(code)
+        Locale.setDefault(locale)
+        LocaleList.setDefault(LocaleList(locale))
     }
 
     private fun prefs(context: Context) =
@@ -53,6 +52,8 @@ object LocaleHelper {
         val code = language(base)
         if (code == SYSTEM) return base
         val locale = localeFor(code)
+        Locale.setDefault(locale)
+        LocaleList.setDefault(LocaleList(locale))
         val config = Configuration(base.resources.configuration)
         config.setLocale(locale)
         config.setLayoutDirection(locale)

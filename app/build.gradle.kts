@@ -21,9 +21,28 @@ val keystoreProperties = Properties().apply {
 // UI falls back to the default (English) resources. Mirror values-he as values-iw
 // so both the legacy ("iw") and standard ("he") matchers find the strings.
 val iwLocaleResDir = layout.buildDirectory.dir("generated/iwLocaleRes").get().asFile
-File(iwLocaleResDir, "values-iw").mkdirs()
-file("src/main/res/values-he").listFiles()?.forEach {
-    if (it.isFile) it.copyTo(File(iwLocaleResDir, "values-iw/${it.name}"), overwrite = true)
+
+// Configuration cache reuses this script's configuration phase, so a config-time copy
+// goes stale whenever values-he changes. Copy as a real task with declared inputs so
+// it re-runs exactly when values-he is edited.
+val syncIwLocaleRes = tasks.register("syncIwLocaleRes") {
+    val srcDir = layout.projectDirectory.dir("src/main/res/values-he").asFile
+    val outDir = File(iwLocaleResDir, "values-iw")
+    inputs.dir(srcDir)
+    outputs.dir(outDir)
+    doLast {
+        outDir.mkdirs()
+        srcDir.listFiles()?.forEach {
+            if (it.isFile) it.copyTo(File(outDir, it.name), overwrite = true)
+        }
+    }
+}
+
+// Every task that consumes the generated resource dir must declare the dependency.
+tasks.configureEach {
+    if (name.endsWith("Resources") || name.contains("SourceSetPaths")) {
+        dependsOn(syncIwLocaleRes)
+    }
 }
 
 

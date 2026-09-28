@@ -15,6 +15,17 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// Hebrew locale fix: on this device/API the resource matcher resolves Hebrew with
+// the legacy "iw" language code (framework-res and libraries ship values-iw, never
+// values-he), so a values-he-only string never matches at runtime and all Hebrew
+// UI falls back to the default (English) resources. Mirror values-he as values-iw
+// so both the legacy ("iw") and standard ("he") matchers find the strings.
+val iwLocaleResDir = layout.buildDirectory.dir("generated/iwLocaleRes").get().asFile
+File(iwLocaleResDir, "values-iw").mkdirs()
+file("src/main/res/values-he").listFiles()?.forEach {
+    if (it.isFile) it.copyTo(File(iwLocaleResDir, "values-iw/${it.name}"), overwrite = true)
+}
+
 
 android {
     namespace = "com.project.lol"
@@ -35,6 +46,8 @@ android {
         compose = true
         buildConfig = true
     }
+
+    sourceSets.getByName("main").res.srcDir(iwLocaleResDir)
 
     signingConfigs {
         create("release") {

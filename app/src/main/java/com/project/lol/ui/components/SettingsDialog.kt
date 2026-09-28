@@ -1,6 +1,9 @@
 package com.project.lol.ui.components
 
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.SharedPreferences
+import android.content.res.Resources
 import android.view.View
 import android.view.ViewParent
 import android.view.Window
@@ -34,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -50,6 +54,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import com.project.lol.R
 import com.project.lol.ui.screens.SettingsContent
 import com.project.lol.util.BuildInfo
+import com.project.lol.util.LocaleHelper
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Settings
 import compose.icons.tablericons.X
@@ -96,6 +101,17 @@ fun SettingsDialog(
                     decorFitsSystemWindows = false
                 )
             ) {
+                // The dialog window gets its own context whose configuration can lag behind
+                // the activity locale. Re-wrap it so stringResource() inside the settings
+                // (and nested dialogs created from it) resolves the picked language.
+                val dlgCtx = LocalContext.current
+                val localizedCtx = remember(dlgCtx) {
+                    runCatching {
+                        val wrapped = LocaleHelper.wrap(dlgCtx)
+                        if (wrapped === dlgCtx) dlgCtx else LocalizedResourcesContext(dlgCtx, wrapped)
+                    }.getOrDefault(dlgCtx)
+                }
+                CompositionLocalProvider(LocalContext provides localizedCtx) {
                 val dialogWindow = rememberCurrentDialogWindow()
                 SideEffect { dialogWindow?.setDimAmount(0f) }
 
@@ -174,6 +190,7 @@ fun SettingsDialog(
                         }
                     }
                 }
+                }
             }
         }
     }
@@ -192,6 +209,13 @@ private fun View.findDialogWindow(): Window? {
         parent = (parent as? View)?.parent
     }
     return null
+}
+
+private class LocalizedResourcesContext(
+    base: Context,
+    private val localized: Context
+) : ContextWrapper(base) {
+    override fun getResources(): Resources = localized.resources
 }
 
 @Composable

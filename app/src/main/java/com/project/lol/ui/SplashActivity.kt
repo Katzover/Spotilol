@@ -117,7 +117,7 @@ class SplashActivity : ComponentActivity() {
         FirebaseCrashlytics.getInstance()
         FirebasePerformance.getInstance()
         analytics.logEvent(FirebaseAnalytics.Event.APP_OPEN, Bundle().apply {
-            putString(FirebaseAnalytics.Param.SCREEN_NAME, "Spotilol")
+            putString(FirebaseAnalytics.Param.SCREEN_NAME, "Spotify")
             putString(FirebaseAnalytics.Param.SCREEN_CLASS, "SplashActivity")
         })
 

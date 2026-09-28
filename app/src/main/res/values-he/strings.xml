@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Spotilol</string>
+    <string name="app_name">Spotify</string>
     <string name="aa_playlists">פלייליסטים</string>
     <string name="aa_albums">אלבומים</string>
     <string name="aa_artists">אמנים</string>
@@ -68,7 +68,7 @@
     <string name="settings_autoplay_onetime">פעם אחת בתחילת ההפעלה</string>
     <string name="settings_autoplay_permanent">תמיד</string>
     <string name="settings_player_mode">מצב נגן</string>
-    <string name="settings_player_spotilol">נגן Spotilol</string>
+    <string name="settings_player_spotilol">נגן Spotify</string>
     <string name="settings_player_original">נגן Spotify המקורי</string>
     <string name="settings_hide_empty_player">הסתרת נגן מינימום ריק</string>
     <string name="settings_hide_empty_player_subtitle">להסתיר את הנגן הקטן עד שטוענים שיר</string>
@@ -141,8 +141,10 @@
     <string name="settings_ca_certificate_subtitle">ייצוא מחדש של תעודת הפרוקסי לתיקיית ההורדות</string>
     <string name="settings_cert_exported">יוצא אל %1$s</string>
     <string name="settings_github_repository">מאגר GitHub</string>
-    <string name="settings_github_subtitle">github.com/lyssadev/Spotilol</string>
-    <string name="settings_version">גרסת Spotilol</string>
+    <string name="settings_github_subtitle">github.com/Katzover/Spotilol</string>
+    <string name="settings_join_channel">הצטרפו לערוץ שלנו</string>
+    <string name="settings_join_channel_subtitle">WhatsApp \u00b7 חדשות ועדכונים</string>
+    <string name="settings_version">גרסת Spotify</string>
     <string name="settings_version_format">v%1$s · %2$s</string>
     <string name="settings_changelog_version">v%1$s</string>
     <string name="settings_webview_engine">מנוע WebView</string>
@@ -154,7 +156,7 @@
     <string name="settings_open_logger_off">היומן כבוי, מוצגות רק רשומות ישנות</string>
     <string name="settings_crash_test">בדיקת קריסה</string>
     <string name="settings_crash_test_subtitle">לזרוק חריגת בדיקה ולפתוח את מסך הקריסה</string>
-    <string name="settings_crash_test_exception">Spotilol crash test</string>
+    <string name="settings_crash_test_exception">Spotify crash test</string>
     <string name="settings_debug_unlocked">כלי הניפוי נפתחו</string>
     <string name="settings_debug_tap_one_left">נותרה הקשה אחת לפתיחת הניפוי</string>
     <string name="settings_debug_taps_left">נותרו %1$d הקשות לפתיחת הניפוי</string>
@@ -180,7 +182,7 @@
     <string name="logger_clear">ניקוי</string>
     <string name="logger_copy">העתקה</string>
     <string name="logger_close">סגירה</string>
-    <string name="offline_app_name">Spotilol</string>
+    <string name="offline_app_name">Spotify</string>
     <string name="offline_version">v%1$s · %2$s</string>
     <string name="offline_desc_settings">הגדרות</string>
     <string name="offline_desc_exit_offline_mode">יציאה מהמצב לא מקוון</string>
@@ -255,10 +257,10 @@
     <string name="main_pip_pause">השהיה</string>
     <string name="main_pip_next">הבא</string>
     <string name="splash_exported_to">יוצא אל: %1$s</string>
-    <string name="splash_title">Spotilol</string>
+    <string name="splash_title">Spotify</string>
     <string name="splash_version_label">v%1$s · %2$s</string>
     <string name="splash_cert_title">נדרשת תעודה</string>
-    <string name="splash_cert_subtitle">התקן את תעודת ה-CA של Spotilol כדי להמשיך.</string>
+    <string name="splash_cert_subtitle">התקן את תעודת ה-CA של Spotify כדי להמשיך.</string>
     <string name="splash_cert_step_1">ייצא את קובץ התעודה .pem למטה</string>
     <string name="splash_cert_step_2">הגדרות &gt; אבטחה &gt; התקנת תעודה &gt; תעודת CA</string>
     <string name="splash_cert_step_3">בחר בקובץ שיוצא ולחץ על \"התקנה בכל מקרה\"</string>
@@ -268,7 +270,7 @@
     <string name="splash_cert_switch_normal">מעבר למצב רגיל</string>
     <string name="splash_onboarding_step">שלב %1$d מתוך %2$d</string>
     <string name="splash_onboarding_welcome">ברוך הבא</string>
-    <string name="splash_onboarding_permissions_subtitle">ל-Spotilol נדרשות ההרשאות האלה כדי לפעול כראוי.</string>
+    <string name="splash_onboarding_permissions_subtitle">ל-Spotify נדרשות ההרשאות האלה כדי לפעול כראוי.</string>
     <string name="splash_onboarding_notifications_title">התראות</string>
     <string name="splash_onboarding_notifications_desc">בקרות ניגון בהתראות ובמסך הנעילה.</string>
     <string name="splash_onboarding_bluetooth_title">מכשירים בסביבה</string>
@@ -282,11 +284,11 @@
     <string name="splash_onboarding_mode_cert_desc">פרוקסי מקומי, דורש התקנת CA.</string>
     <string name="splash_onboarding_go">התחלה</string>
     <string name="splash_onboarding_ready_title">הכול מוכן</string>
-    <string name="splash_onboarding_ready_desc">לחץ על התחלה כדי לפתוח את Spotilol.</string>
+    <string name="splash_onboarding_ready_desc">לחץ על התחלה כדי לפתוח את Spotify.</string>
     <string name="splash_onboarding_ready_item_title">כל ההגדרות מוכנות</string>
     <string name="splash_onboarding_ready_item_desc">התחבר עם חשבון ה-Spotify שלך ותיהנה מהמוזיקה.</string>
     <string name="settings_dialog_title">הגדרות</string>
-    <string name="settings_dialog_version">Spotilol v%1$s · %2$s</string>
+    <string name="settings_dialog_version">Spotify v%1$s · %2$s</string>
     <string name="settings_dialog_close">סגירה</string>
     <string name="error_title_no_internet">אין חיבור לאינטרנט</string>
     <string name="error_message_no_internet">לא זוהה חיבור לאינטרנט.\nבדוק את הרשת ונסה שוב.</string>
@@ -303,7 +305,7 @@
     <string name="error_retry">ניסיון נוסף</string>
     <string name="error_detail">שגיאה %1$d - %2$s</string>
 
-    <string name="crash_title">Spotilol קרס</string>
+    <string name="crash_title">Spotify קרס</string>
     <string name="crash_unknown">קריסה לא ידועה</string>
     <string name="crash_no_report">לא נתפס דיווח קריסה</string>
     <string name="crash_report_header">דיווח</string>
@@ -313,9 +315,9 @@
     <string name="crash_restart">הפעלה מחדש</string>
 
     <string name="notif_channel_media_name">ניגון מדיה</string>
-    <string name="notif_channel_media_description">בקרות ניגון המדיה של Spotilol</string>
+    <string name="notif_channel_media_description">בקרות ניגון המדיה של Spotify</string>
     <string name="notif_channel_offline_name">ניגון לא מקוון</string>
-    <string name="notif_channel_offline_description">בקרות הניגון הלא מקוון של Spotilol</string>
+    <string name="notif_channel_offline_description">בקרות הניגון הלא מקוון של Spotify</string>
     <string name="notif_action_previous">הקודם</string>
     <string name="notif_action_next">הבא</string>
     <string name="notif_action_play">ניגון</string>
@@ -329,13 +331,13 @@
     <string name="notif_unknown_name">לא ידוע</string>
     <string name="notif_by_artist">מאת %1$s</string>
     <string name="notif_channel_downloads_name">הורדות</string>
-    <string name="notif_channel_downloads_description">הורדות שירים של Spotilol</string>
+    <string name="notif_channel_downloads_description">הורדות שירים של Spotify</string>
     <string name="notif_repeat_disable">כיבוי חזרה</string>
     <string name="notif_repeat_disable_one">כיבוי חזרה על שיר אחד</string>
     <string name="notif_repeat_enable">הפעלת חזרה</string>
 
     <string name="dl_notif_downloading_playlist">מוריד פלייליסט</string>
-    <string name="dl_notif_downloading_title">הורדת Spotilol</string>
+    <string name="dl_notif_downloading_title">הורדת Spotify</string>
     <string name="dl_notif_track_of">שיר %1$d מתוך %2$d</string>
     <string name="dl_notif_stage_percent">%1$s · %2$d%%</string>
     <string name="dl_notif_saved">%1$d נשמרו</string>

@@ -1,7 +1,7 @@
 package com.project.lol.webview.injections
 
 /*
- * CREDIT: Spotilol - Power Save Mode.
+ * CREDIT: Spotify - Power Save Mode.
  * GitHub: https://github.com/AldySan
  */
 object PowerSave {

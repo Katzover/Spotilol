@@ -1,7 +1,7 @@
 package com.project.lol.webview.injections
 
 /*
- * CREDIT: Spotilol - Error Dialog Restyle
+ * CREDIT: Spotify - Error Dialog Restyle
  */
 
 object ErrorDialogRestyle {

@@ -197,7 +197,7 @@ class OfflineMediaService : Service() {
     }
 
     private fun setupMediaSession() {
-        mediaSession = MediaSessionCompat(this, "SpotilolOfflineSession").apply {
+        mediaSession = MediaSessionCompat(this, "SpotifyOfflineSession").apply {
             setFlags(
                 MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
                     MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS

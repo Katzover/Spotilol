@@ -27,7 +27,10 @@ object LocaleHelper {
         prefs(context).getString(KEY_LANGUAGE, SYSTEM) ?: SYSTEM
 
     fun setLanguage(context: Context, code: String) {
-        prefs(context).edit().putString(KEY_LANGUAGE, code).apply()
+        // commit() (synchronous): callers restart/kill the process immediately after,
+        // so the value must be on disk before the new process reads it. apply() is
+        // async and its pending write is lost if the process dies right after.
+        prefs(context).edit().putString(KEY_LANGUAGE, code).commit()
         val locale = if (code == SYSTEM) systemLocale() else localeFor(code)
         Locale.setDefault(locale)
         LocaleList.setDefault(LocaleList(locale))
@@ -50,7 +53,9 @@ object LocaleHelper {
     /** Wraps any context (application, activity, service) with the picked language. */
     fun wrap(base: Context): Context {
         val code = language(base)
-        if (code == SYSTEM) return base
+        if (code == SYSTEM) {
+            return base
+        }
         val locale = localeFor(code)
         Locale.setDefault(locale)
         LocaleList.setDefault(LocaleList(locale))

@@ -23,7 +23,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Spotilol"
+rootProject.name = "Spotify"
 include(":app")
 include(":lame")
 include(":opus")

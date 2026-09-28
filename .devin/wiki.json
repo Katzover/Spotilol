@@ -1,7 +1,7 @@
 {
   "repo_notes": [
     {
-      "content": "This is an Android app (Spotilol) that wraps the Spotify Web Player in a WebView. It injects custom JS/CSS to block ads/analytics, spoof the browser fingerprint, bypass GDPR dialogs, add custom player controls, and expose a library browser. Written in Kotlin using Jetpack Compose. The project is a clean-Kotlin port of deviato's Spotifuck. Priority areas: webview/ (JS injection engine), service/ (media + offline playback), offline/ + innertube/ + yt/ (YouTube-backed offline downloads), and bridge/ (JS <-> Kotlin).",
+      "content": "This is an Android app (Spotify) that wraps the Spotify Web Player in a WebView. It injects custom JS/CSS to block ads/analytics, spoof the browser fingerprint, bypass GDPR dialogs, add custom player controls, and expose a library browser. Written in Kotlin using Jetpack Compose. The project is a clean-Kotlin port of deviato's Spotifuck. Priority areas: webview/ (JS injection engine), service/ (media + offline playback), offline/ + innertube/ + yt/ (YouTube-backed offline downloads), and bridge/ (JS <-> Kotlin).",
       "author": "Maintainer"
     },
     {
@@ -20,7 +20,7 @@
   "pages": [
     {
       "title": "Architecture Overview",
-      "purpose": "High-level architecture of Spotilol: how the WebView, JS injection engine, Android services, Android Auto integration, and the YouTube-backed offline downloader interact to wrap and enhance the Spotify Web Player",
+      "purpose": "High-level architecture of Spotify: how the WebView, JS injection engine, Android services, Android Auto integration, and the YouTube-backed offline downloader interact to wrap and enhance the Spotify Web Player",
       "parent": null
     },
     {

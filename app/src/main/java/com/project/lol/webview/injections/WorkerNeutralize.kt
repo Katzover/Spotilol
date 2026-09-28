@@ -1,7 +1,7 @@
 package com.project.lol.webview.injections
 
 /*
- * CREDIT: Spotilol - Worker Neutralizer.
+ * CREDIT: Spotify - Worker Neutralizer.
  * GitHub: https://github.com/AldySan
  *
  * Injection is now gated by the "BlockServiceWorker" SharedPreferences
@@ -40,7 +40,7 @@ object WorkerNeutralize {
             if(navigator.serviceWorker){
                 try {
                     navigator.serviceWorker.register = function(){
-                        return Promise.reject(new Error('SW blocked by Spotilol'));
+                        return Promise.reject(new Error('SW blocked by Spotify'));
                     };
                 } catch(e){}
                 try {

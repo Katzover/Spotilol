@@ -4,7 +4,7 @@ import com.project.lol.R
 import org.json.JSONObject
 
 /**
- * Spotilol - Lyrics Style Engine.
+ * Spotify - Lyrics Style Engine.
  *
  * Injects a dedicated <style id="spotilol-lyrics-style"> element. It does
  * NOT touch 'spotilol-custom-css' (owned by the CustomCss setting), so the
@@ -70,7 +70,7 @@ object LyricsTheme {
     // (your v5 sections A, B, J, M)
     // ---------------------------------------------------------------
     private val SHARED_FIX = """
-/* --- Spotilol Lyrics Engine: shared fixes --- */
+/* --- Spotify Lyrics Engine: shared fixes --- */
 
 /* Old ~1-screen background layer -> hidden */
 .nqmjceMqTFCSMXlnquLP { display: none !important; }

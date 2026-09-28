@@ -1,31 +1,31 @@
 <div align="center">
-  <img src="art/bgwelcome.png" alt="Spotilol" style="width: 100%; max-width: 900px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+  <img src="art/bgwelcome.png" alt="Spotify" style="width: 100%; max-width: 900px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
 </div>
 
-<h1 align="center">Spotilol</h1>
+<h1 align="center">Spotify</h1>
 
 <p align="center">
-  <a href="https://github.com/lyssadev/Spotilol/stargazers">
-    <img src="https://img.shields.io/github/stars/lyssadev/Spotilol?style=for-the-badge&logo=starship&labelColor=0d0d0d&color=1DB954" alt="stars"/>
+  <a href="https://github.com/lyssadev/Spotify/stargazers">
+    <img src="https://img.shields.io/github/stars/lyssadev/Spotify?style=for-the-badge&logo=starship&labelColor=0d0d0d&color=1DB954" alt="stars"/>
   </a>
   &nbsp;
-  <a href="https://github.com/lyssadev/Spotilol/releases">
-    <img src="https://img.shields.io/github/downloads/lyssadev/Spotilol/total?style=for-the-badge&logo=download&labelColor=0d0d0d&color=1DB954" alt="downloads"/>
+  <a href="https://github.com/lyssadev/Spotify/releases">
+    <img src="https://img.shields.io/github/downloads/lyssadev/Spotify/total?style=for-the-badge&logo=download&labelColor=0d0d0d&color=1DB954" alt="downloads"/>
   </a>
   &nbsp;
-  <a href="https://github.com/lyssadev/Spotilol/releases/latest">
-    <img src="https://img.shields.io/github/v/release/lyssadev/Spotilol?style=for-the-badge&logo=github&labelColor=0d0d0d&color=1DB954" alt="version"/>
+  <a href="https://github.com/lyssadev/Spotify/releases/latest">
+    <img src="https://img.shields.io/github/v/release/lyssadev/Spotify?style=for-the-badge&logo=github&labelColor=0d0d0d&color=1DB954" alt="version"/>
   </a>
   &nbsp;
-  <a href="https://github.com/lyssadev/Spotilol/forks">
-    <img src="https://img.shields.io/github/forks/lyssadev/Spotilol?style=for-the-badge&logo=git&labelColor=0d0d0d&color=1DB954" alt="forks"/>
+  <a href="https://github.com/lyssadev/Spotify/forks">
+    <img src="https://img.shields.io/github/forks/lyssadev/Spotify?style=for-the-badge&logo=git&labelColor=0d0d0d&color=1DB954" alt="forks"/>
   </a>
   &nbsp;
-  <a href="https://github.com/lyssadev/Spotilol/commits/main">
-    <img src="https://img.shields.io/github/last-commit/lyssadev/Spotilol?style=for-the-badge&logo=git&labelColor=0d0d0d&color=1DB954" alt="last commit"/>
+  <a href="https://github.com/lyssadev/Spotify/commits/main">
+    <img src="https://img.shields.io/github/last-commit/lyssadev/Spotify?style=for-the-badge&logo=git&labelColor=0d0d0d&color=1DB954" alt="last commit"/>
   </a>
   &nbsp;
-  <a href="https://deepwiki.com/lyssadev/Spotilol">
+  <a href="https://deepwiki.com/lyssadev/Spotify">
     <img src="https://deepwiki.com/badge.svg" alt="DeepWiki" style="height: 28px;"/>
   </a>
 </p>
@@ -45,8 +45,8 @@
 ## Download
 
 <div align="center">
-  <a href="https://github.com/lyssadev/Spotilol/releases/latest">
-    <img src="https://img.shields.io/github/v/release/lyssadev/Spotilol?style=for-the-badge&logo=github&labelColor=0d0d0d&color=1DB954" alt="Download APK"/>
+  <a href="https://github.com/lyssadev/Spotify/releases/latest">
+    <img src="https://img.shields.io/github/v/release/lyssadev/Spotify?style=for-the-badge&logo=github&labelColor=0d0d0d&color=1DB954" alt="Download APK"/>
   </a>
 </div>
 
@@ -93,7 +93,7 @@ download the `.apk` and install it on your device. you may need to toggle **"Ins
 
 ## Quick Start
 
-install the APK, open it, done. Spotilol runs in **normal mode** by default — no certificate, no setup, no "Certificate Required" screen. it just works out of the box.
+install the APK, open it, done. Spotify runs in **normal mode** by default — no certificate, no setup, no "Certificate Required" screen. it just works out of the box.
 
 ---
 
@@ -103,14 +103,14 @@ want the full fingerprint treatment? flip the mode in **Settings → Connection 
 
 ### The Certificate Thing
 
-Spotilol generates a local CA cert so Spotify doesn't know you're in a WebView. it lives on your device, stays on your device.
+Spotify generates a local CA cert so Spotify doesn't know you're in a WebView. it lives on your device, stays on your device.
 
-1. open Spotilol in proxy mode — you'll see the **"Certificate Required"** screen
+1. open Spotify in proxy mode — you'll see the **"Certificate Required"** screen
 2. tap **"Export .pem"** to save it to your Downloads
 3. go to **Settings > Security > Encryption & Credentials > Install a certificate > CA certificate**
 4. find `spotilol_ca.pem` in your Downloads and tap it
 5. it'll warn you about network monitoring — tap **"Install anyway"**
-6. come back to Spotilol and tap **"Check"**. if it worked, you're in.
+6. come back to Spotify and tap **"Check"**. if it worked, you're in.
 
 > **Note:** if you ever clear your device's credential storage (like after a factory reset), you'll have to do this again.
 
@@ -119,8 +119,8 @@ Spotilol generates a local CA cert so Spotify doesn't know you're in a WebView. 
 ## Build It Yourself
 
 ```bash
-git clone https://github.com/lyssadev/Spotilol
-cd Spotilol
+git clone https://github.com/lyssadev/Spotify
+cd Spotify
 ./gradlew assembleDebug
 ```
 

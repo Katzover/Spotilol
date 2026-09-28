@@ -1,7 +1,7 @@
 package com.project.lol.webview.injections
 
 /*
- * CREDIT: Spotilol - Lyrics Sync Float
+ * CREDIT: Spotify - Lyrics Sync Float
  * GitHub: https://github.com/AldySan
  */
 

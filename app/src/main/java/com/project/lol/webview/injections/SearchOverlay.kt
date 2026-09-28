@@ -1,6 +1,6 @@
 package com.project.lol.webview.injections
 /*
- * CREDIT: Spotilol - Custom Search Overlay.
+ * CREDIT: Spotify - Custom Search Overlay.
  *
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠙⠻⢶⣄⡀⠀⠀⠀⢀⣤⠶⠛⠛⡇⠀⠀⠀

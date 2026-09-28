@@ -1,7 +1,7 @@
 package com.project.lol.webview.injections
 
 /*
- * CREDIT: Spotilol - Queue Panel Auto-Close
+ * CREDIT: Spotify - Queue Panel Auto-Close
  *
  * Closes the queue side panel whenever the user interacts with anything
  * that isn't the queue itself (lyrics, library, home, track links, etc.).

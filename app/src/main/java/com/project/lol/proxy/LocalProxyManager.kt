@@ -171,7 +171,7 @@ object LocalProxyManager {
         kpg.initialize(2048, SecureRandom())
         caKeyPair = kpg.generateKeyPair()
 
-        val name = X500Name("CN=Spotilol Proxy CA, O=Spotilol")
+        val name = X500Name("CN=Spotify Proxy CA, O=Spotify")
         val serial = BigInteger.valueOf(System.currentTimeMillis())
         val notBefore = Date()
         val notAfter = Date(notBefore.time + 365L * 24 * 60 * 60 * 1000L * 10)
@@ -730,7 +730,7 @@ object LocalProxyManager {
         }
         val domainKeyPair = leafKeyPair!!
 
-        val issuer = X500Name("CN=Spotilol Proxy CA, O=Spotilol")
+        val issuer = X500Name("CN=Spotify Proxy CA, O=Spotify")
         val subject = X500Name("CN=$domain")
         val serial = BigInteger.valueOf(System.currentTimeMillis())
         val notBefore = Date()

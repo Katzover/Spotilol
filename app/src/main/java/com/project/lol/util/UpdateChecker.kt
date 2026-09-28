@@ -36,8 +36,10 @@ class UpdateChecker(private val context: Context) {
 
             Logger.i(TAG, "latest=$latest current=$current newer=${isNewer(latest, current)}")
             if (isNewer(latest, current)) {
-                val url = release.htmlUrl.ifBlank {
-                    "https://github.com/$OWNER/$REPO/releases/latest"
+                val url = release.apkUrl.ifBlank {
+                    release.htmlUrl.ifBlank {
+                        "https://github.com/$OWNER/$REPO/releases/latest"
+                    }
                 }
                 Logger.s(TAG, "update available: $url")
                 onUpdateAvailable(url)

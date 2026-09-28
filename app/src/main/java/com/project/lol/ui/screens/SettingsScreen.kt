@@ -1235,7 +1235,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
     fun fetch() {
         loading = true
         failed = false
-        GitHubApi.fetchLatestRelease("lyssadev", "Spotilol") { r ->
+        GitHubApi.fetchLatestRelease("Katzover", "Spotilol") { r ->
             loading = false
             if (r == null || r.body.isBlank()) {
                 failed = true

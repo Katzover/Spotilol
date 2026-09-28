@@ -13,7 +13,8 @@ data class GitHubRelease(
     val name: String,
     val body: String,
     val publishedAt: String,
-    val htmlUrl: String
+    val htmlUrl: String,
+    val apkUrl: String
 )
 
 object GitHubApi {
@@ -40,12 +41,23 @@ object GitHubApi {
 
                 val release = if (conn.responseCode == 200) {
                     val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                    var apkUrl = ""
+                    json.optJSONArray("assets")?.let { assets ->
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.optJSONObject(i)
+                            if (asset != null && asset.optString("name").endsWith(".apk", ignoreCase = true)) {
+                                apkUrl = asset.optString("browser_download_url")
+                                break
+                            }
+                        }
+                    }
                     GitHubRelease(
                         tagName = json.optString("tag_name", ""),
                         name = json.optString("name", ""),
                         body = json.optString("body", ""),
                         publishedAt = json.optString("published_at", ""),
-                        htmlUrl = json.optString("html_url", "")
+                        htmlUrl = json.optString("html_url", ""),
+                        apkUrl = apkUrl
                     )
                 } else {
                     null

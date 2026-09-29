@@ -110,7 +110,9 @@ import com.project.lol.proxy.LocalProxyManager
 import com.project.lol.service.MediaNotificationService
 import com.project.lol.ui.components.SettingsDialog
 import com.project.lol.ui.theme.SpotifyTheme
+import com.project.lol.util.AppLinks
 import com.project.lol.util.BuildInfo
+import com.project.lol.util.DiscordReporter
 import com.project.lol.util.Logger
 import com.project.lol.util.NetworkMonitor
 import com.project.lol.util.UpdateChecker
@@ -123,6 +125,7 @@ import com.project.lol.webview.helpers.buildAmoledJs
 import com.project.lol.webview.helpers.buildCustomCssJs
 import com.project.lol.webview.injections.LogoutCheck
 import compose.icons.TablerIcons
+import compose.icons.tablericons.BrandWhatsapp
 import compose.icons.tablericons.Menu2
 import compose.icons.tablericons.Settings
 import java.lang.ref.WeakReference
@@ -170,6 +173,7 @@ class MainActivity : ComponentActivity() {
 
     private val showSleepTimerDialog = mutableStateOf(false)
     private val updateDialog = mutableStateOf<Pair<String, String>?>(null)
+    private val installWarningDialog = mutableStateOf(false)
     private val sleepTimerInputText = mutableStateOf("")
     private var sleepTimer: CountDownTimer? = null
     private val sleepTimerRemainingMs = mutableLongStateOf(0L)
@@ -218,8 +222,24 @@ class MainActivity : ComponentActivity() {
         }
 
         val uc = UpdateChecker(this)
-        uc.autoCheck { url, version ->
-            updateDialog.value = url to version
+        uc.autoCheck { url, latest, current ->
+            val firstCheck = !prefs.contains(UpdateChecker.KEY_INSTALL_CHECKED)
+            if (firstCheck) {
+                prefs.edit { putBoolean(UpdateChecker.KEY_INSTALL_CHECKED, true) }
+            }
+            if (firstCheck && url != null) {
+                val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    runCatching { packageManager.getInstallSourceInfo(packageName).installingPackageName }.getOrNull()
+                } else {
+                    @Suppress("DEPRECATION")
+                    runCatching { packageManager.getInstallerPackageName(packageName) }.getOrNull()
+                } ?: "unknown"
+                Logger.i(TAG, "possible wrong-source install: current=$current latest=$latest installer=$installer")
+                DiscordReporter.reportPossibleWrongSource(current, latest, installer)
+                installWarningDialog.value = true
+            } else {
+                url?.let { updateDialog.value = it to "v$latest" }
+            }
         }
 
         val loggedIn = prefs.getBoolean("LoggedIn", false)
@@ -248,6 +268,43 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            if (installWarningDialog.value) {
+                AlertDialog(
+                    onDismissRequest = { installWarningDialog.value = false },
+                    title = {
+                        Text(
+                            stringResource(R.string.install_warning_title),
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = { Text(stringResource(R.string.install_warning_message)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            installWarningDialog.value = false
+                            runCatching {
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppLinks.CHANNEL_URL)))
+                            }
+                        }) {
+                            Icon(
+                                TablerIcons.BrandWhatsapp,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                stringResource(R.string.settings_join_channel),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { installWarningDialog.value = false }) {
+                            Text(stringResource(R.string.settings_cancel))
+                        }
+                    }
+                )
+            }
+
             updateDialog.value?.let { (url, version) ->
                 AlertDialog(
                     onDismissRequest = { updateDialog.value = null },

@@ -231,6 +231,8 @@
     <string name="main_update_available">זמינה גרסה חדשה</string>
     <string name="update_dialog_message">גרסה %1$s מוכנה להורדה ולהתקנה.</string>
     <string name="update_dialog_download">הורדה</string>
+    <string name="install_warning_title">התקנה לא רשמית?</string>
+    <string name="install_warning_message">הגרסה המותקנת אינה הגרסה האחרונה, וייתכן שהיא הותקנה ממקור שאינו רשמי. הצטרפו לערוץ הרשמי שלנו לקבלת הורדות ועדכונים אמינים.</string>
     <string name="main_version_label">v%1$s · %2$s</string>
     <string name="main_settings_content_description">הגדרות</string>
     <string name="main_webview_version">Webview: %1$s</string>

@@ -112,6 +112,7 @@ import com.project.lol.proxy.LocalProxyManager
 import com.project.lol.service.MediaNotificationService
 import com.project.lol.ui.SplashActivity
 import com.project.lol.ui.theme.SpotifyTheme
+import com.project.lol.util.AppLinks
 import com.project.lol.util.BuildInfo
 import com.project.lol.util.GitHubApi
 import com.project.lol.util.GitHubRelease
@@ -696,7 +697,7 @@ fun SettingsContent(
                         subtitle = stringResource(R.string.settings_github_subtitle),
                         painter = painterResource(id = R.drawable.ic_github),
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Katzover/Spotilol"))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(AppLinks.GITHUB_URL))
                             context.startActivity(intent)
                         }
                     )
@@ -710,7 +711,7 @@ fun SettingsContent(
                         onClick = {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
-                                Uri.parse("https://whatsapp.com/channel/0029VbEBTl2EQIajicmZgC1O/100")
+                                Uri.parse(AppLinks.CHANNEL_URL)
                             )
                             context.startActivity(intent)
                         }

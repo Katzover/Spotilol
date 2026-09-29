@@ -231,6 +231,8 @@
     <string name="main_update_available">A new update is available</string>
     <string name="update_dialog_message">Version %1$s is ready to download and install.</string>
     <string name="update_dialog_download">Download</string>
+    <string name="install_warning_title">Unofficial install?</string>
+    <string name="install_warning_message">This app is not running the latest version, so it may have been installed from a source other than the official one. Join our official channel for trusted downloads and updates.</string>
     <string name="main_version_label">v%1$s · %2$s</string>
     <string name="main_settings_content_description">Settings</string>
     <string name="main_webview_version">Webview: %1$s</string>

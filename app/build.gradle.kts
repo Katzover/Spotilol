@@ -15,6 +15,14 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// Optional Discord webhook for anonymous wrong-source-install reports.
+// Lives in gitignored local.properties (never committed); absent => no-op.
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val discordWebhook = localProperties.getProperty("discordWebhook", "")
+
 // Hebrew locale fix: on this device/API the resource matcher resolves Hebrew with
 // the legacy "iw" language code (framework-res and libraries ship values-iw, never
 // values-he), so a values-he-only string never matches at runtime and all Hebrew
@@ -56,6 +64,11 @@ android {
         targetSdk = 36
         versionCode = 19
         versionName = "1.1.9"
+        buildConfigField(
+            "String",
+            "DISCORD_WEBHOOK",
+            "\"${discordWebhook.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+        )
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }

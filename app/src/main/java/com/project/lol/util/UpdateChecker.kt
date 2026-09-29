@@ -10,13 +10,22 @@ class UpdateChecker(private val context: Context) {
         private const val REPO = "Spotilol"
         private const val PREFS_NAME = "spotilol_prefs"
         private const val KEY_LAST_CHECK = "LastUpdateCheck"
+        const val KEY_INSTALL_CHECKED = "InstallSourceChecked"
         private const val CHECK_INTERVAL_MS = 60 * 60 * 1000L
     }
 
-    fun autoCheck(onUpdateAvailable: (url: String, version: String) -> Unit) {
+    /**
+     * Fetches the latest release and reports the result on the main thread.
+     * [onResult] fires on every successful fetch: [url] is non-null only when
+     * an update is available. No callback on fetch failure (the first-install
+     * check then simply retries on a later launch — the hourly throttle is
+     * bypassed while KEY_INSTALL_CHECKED is still missing).
+     */
+    fun autoCheck(onResult: (url: String?, latest: String, current: String) -> Unit) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val checkedBefore = prefs.contains(KEY_INSTALL_CHECKED)
         val lastCheck = prefs.getLong(KEY_LAST_CHECK, 0)
-        if (System.currentTimeMillis() - lastCheck < CHECK_INTERVAL_MS) {
+        if (checkedBefore && System.currentTimeMillis() - lastCheck < CHECK_INTERVAL_MS) {
             Logger.v(TAG, "update check throttled (last ${(System.currentTimeMillis() - lastCheck) / 1000}s ago)")
             return
         }
@@ -29,21 +38,23 @@ class UpdateChecker(private val context: Context) {
                 Logger.w(TAG, "update check failed or no release found")
                 return@fetchLatestRelease
             }
-            val latest = tag
             val current = runCatching {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
             }.getOrElse { "" }
 
-            Logger.i(TAG, "latest=$latest current=$current newer=${isNewer(latest, current)}")
-            if (isNewer(latest, current)) {
-                val url = release.apkUrl.ifBlank {
+            val newer = isNewer(tag, current)
+            Logger.i(TAG, "latest=$tag current=$current newer=$newer")
+            val url = if (newer) {
+                release.apkUrl.ifBlank {
                     release.htmlUrl.ifBlank {
                         "https://github.com/$OWNER/$REPO/releases/latest"
                     }
                 }
-                Logger.s(TAG, "update available: $url")
-                onUpdateAvailable(url, "v$latest")
+            } else {
+                null
             }
+            if (url != null) Logger.s(TAG, "update available: $url")
+            onResult(url, tag, current)
         }
     }
 
